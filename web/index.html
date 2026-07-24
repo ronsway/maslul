@@ -35,6 +35,9 @@
     background:linear-gradient(135deg,var(--work),var(--warm)); transform:translateY(-2px);}
   .profbtn{width:40px; height:40px; border-radius:50%; background:var(--panel2);
     border:1px solid var(--line); display:grid; place-items:center; font-weight:700; font-size:15px;}
+  .hdrbtns{display:flex; align-items:center; gap:8px;}
+  .langbtn{height:40px; padding:0 13px; border-radius:20px; background:var(--panel2);
+    border:1px solid var(--line); font-weight:700; font-size:13px;}
 
   /* ---- week nav ---- */
   .weeknav{display:flex; align-items:center; justify-content:space-between; padding:6px 18px 4px;}
@@ -116,7 +119,7 @@
   .sheet h2{font-family:'Rubik'; font-weight:800; font-size:20px; margin:2px 0 16px;}
 
   .types{display:grid; grid-template-columns:repeat(2,1fr); gap:9px; margin-bottom:18px;}
-  .type{border:1px solid var(--line); background:var(--panel); border-radius:14px; padding:13px 12px; text-align:right;}
+  .type{border:1px solid var(--line); background:var(--panel); border-radius:14px; padding:13px 12px; text-align:start;}
   .type.on{border-color:var(--work); background:linear-gradient(180deg,#241a19,var(--panel));}
   .type .tn{font-family:'Rubik'; font-weight:700; font-size:15px;}
   .type .td{color:var(--muted); font-size:12px; margin-top:2px;}
@@ -214,9 +217,73 @@ sb.auth.onAuthStateChange(async (event,session)=>{
   render();
 });
 
+/* ============ i18n ============ */
+const DAYS={he:['א','ב','ג','ד','ה','ו','ש'], en:['Sun','Mon','Tue','Wed','Thu','Fri','Sat']};
+const MONTHS_I18N={
+  he:['ינו','פבר','מרץ','אפר','מאי','יונ','יול','אוג','ספט','אוק','נוב','דצמ'],
+  en:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+};
+const T={
+  gateSub:{he:'תוכנית האימונים שלך, מסונכרנת בין כל המכשירים. התחבר עם חשבון Google כדי להמשיך.', en:'Your training plan, synced across all your devices. Sign in with Google to continue.'},
+  googleSignIn:{he:'התחבר עם Google', en:'Sign in with Google'},
+  thisWeek:{he:'· השבוע', en:'· This week'},
+  addWorkout:{he:'הוסף אימון ליום זה', en:'Add workout for this day'},
+  sendWeek:{he:'שלח שבוע לגרמין', en:'Send week to Garmin'},
+  emptyBig:{he:'אין אימון ליום זה', en:'No workout for this day'},
+  emptySub:{he:'בחר סוג אימון והגדר חימום, מקטעים ושחרור', en:'Choose a workout type and set warmup, segments and cooldown'},
+  warmup:{he:'חימום', en:'Warmup'},
+  cooldown:{he:'שחרור', en:'Cooldown'},
+  edit:{he:'ערוך', en:'Edit'},
+  del:{he:'מחק', en:'Delete'},
+  steadyRun:{he:'ריצה רציפה', en:'Continuous run'},
+  reps:{he:'חזרות', en:'reps'},
+  effort:{he:'מאמץ', en:'Effort'},
+  recovery:{he:'התאוששות', en:'Recovery'},
+  newWorkout:{he:'אימון חדש', en:'New workout'},
+  editWorkout:{he:'עריכת אימון', en:'Edit workout'},
+  workoutName:{he:'שם האימון', en:'Workout name'},
+  warmupMin:{he:'חימום (דקות)', en:'Warmup (minutes)'},
+  mainSegments:{he:'מקטעים עיקריים', en:'Main segments'},
+  addSegment:{he:'+ הוסף מקטע', en:'+ Add segment'},
+  cooldownMin:{he:'שחרור (דקות)', en:'Cooldown (minutes)'},
+  saveWorkout:{he:'שמור אימון', en:'Save workout'},
+  cancel:{he:'ביטול', en:'Cancel'},
+  remove:{he:'הסר', en:'Remove'},
+  intervalReps:{he:'חזרות אינטרוול', en:'Interval reps'},
+  repCount:{he:'מספר חזרות', en:'Number of reps'},
+  timeMode:{he:'זמן', en:'Time'},
+  distMode:{he:'מרחק', en:'Distance'},
+  seconds:{he:'שניות', en:'seconds'},
+  meters:{he:'מטרים', en:'meters'},
+  sendTitle:{he:'שליחה לגרמין', en:'Send to Garmin'},
+  sendNote:{he:'האימונים ייווצרו ב-Garmin Connect ויתוזמנו לתאריכים. סנכרן את השעון כדי להוריד אותם. ההתחברות לגרמין נעשית בשרת דרך טוקן קבוע, ללא סיסמה בבקשה.',
+    en:'Workouts are created in Garmin Connect and scheduled on their dates. Sync your watch to download them. The server connects to Garmin using a stored token — no password is sent.'},
+  workoutsThisWeek:{he:'אימונים בשבוע זה', en:'workouts this week'},
+  scheduled:{he:'תוזמן', en:'Scheduled'},
+  errorWord:{he:'שגיאה', en:'Error'},
+  sendAgain:{he:'שלח שוב', en:'Send again'},
+  sendToGarmin:{he:'שלח לגרמין', en:'Send to Garmin'},
+  showPayload:{he:'הצג את ה-JSON שיישלח', en:'Show JSON to be sent'},
+  close:{he:'סגור', en:'Close'},
+  profileTitle:{he:'הפרופיל שלי', en:'My profile'},
+  name:{he:'שם', en:'Name'},
+  maxHR:{he:'דופק מקסימלי', en:'Max heart rate'},
+  restHR:{he:'דופק מנוחה', en:'Resting heart rate'},
+  thrPace:{he:'קצב סף (דק׳/ק״מ)', en:'Threshold pace (min/km)'},
+  connectedAs:{he:'מחובר כ-', en:'Signed in as '},
+  syncNote:{he:'. התוכנית מסונכרנת אוטומטית לכל המכשירים שבהם תתחבר עם אותו חשבון.', en:'. Your plan syncs automatically to every device you sign into with this account.'},
+  save:{he:'שמור', en:'Save'},
+  signOut:{he:'התנתק', en:'Sign out'},
+  serverErrorAlert:{he:'השרת החזיר שגיאה: ', en:'The server returned an error: '},
+  sendFailedAlert:{he:'השליחה נכשלה: ', en:'Send failed: '},
+  sendFailedHint:{he:'\nודא שה-backend פרוס ושכתובת ה-URL נכונה.', en:'\nMake sure the backend is deployed and the URL is correct.'},
+  min:{he:'דק׳', en:'min'},
+  meterShort:{he:'מ׳', en:'m'},
+};
+function t(k){ return T[k][S.lang]; }
+function setLang(l){ S.lang=l; store.set('lang',l); render(); }
+
 /* ============ helpers ============ */
-const HEB_DAYS=['א','ב','ג','ד','ה','ו','ש'];
-const MONTHS=['ינו','פבר','מרץ','אפר','מאי','יונ','יול','אוג','ספט','אוק','נוב','דצמ'];
 const pad=n=>String(n).padStart(2,'0');
 const uid=()=>Math.random().toString(36).slice(2,9);
 function ymd(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
@@ -228,11 +295,13 @@ function startOfWeek(offset){ // Sunday-start week
 function weekDates(offset){ const s=startOfWeek(offset); return [...Array(7)].map((_,i)=>{const d=new Date(s); d.setDate(s.getDate()+i); return d;}); }
 
 const TYPES={
-  intervals:{name:'אינטרוולים', en:'Intervals', desc:'מקטעי מאמץ מהיר עם התאוששות', color:'--work'},
-  hills:{name:'עליות', en:'Hills', desc:'ריצת עליות עם ג׳וגינג ירידה', color:'--work'},
-  fartlek:{name:'פארטלק', en:'Fartlek', desc:'משחקי קצב, האצות משתנות', color:'--work'},
-  volume:{name:'נפח', en:'Volume', desc:'ריצה רציפה בקצב קל', color:'--easy'},
+  intervals:{name:'אינטרוולים', en:'Intervals', desc:'מקטעי מאמץ מהיר עם התאוששות', descEn:'Fast effort segments with recovery', color:'--work'},
+  hills:{name:'עליות', en:'Hills', desc:'ריצת עליות עם ג׳וגינג ירידה', descEn:'Hill repeats with jog-down recovery', color:'--work'},
+  fartlek:{name:'פארטלק', en:'Fartlek', desc:'משחקי קצב, האצות משתנות', descEn:'Speed play, varying surges', color:'--work'},
+  volume:{name:'נפח', en:'Volume', desc:'ריצה רציפה בקצב קל', descEn:'Continuous run at an easy pace', color:'--easy'},
 };
+function typeLabel(k){ return S.lang==='he'? TYPES[k].name : TYPES[k].en; }
+function typeDesc(k){ return S.lang==='he'? TYPES[k].desc : TYPES[k].descEn; }
 /* seconds-per-meter estimates, for the visual profile bar only */
 const PACE={work:0.27, recovery:0.39, easy:0.36};
 
@@ -266,13 +335,14 @@ function flattenSteps(w){
 }
 const COLOR={warm:'--warm', work:'--work', recovery:'--rec', easy:'--easy'};
 function totalSecs(w){ return flattenSteps(w).reduce((a,s)=>a+s.secs,0); }
-function fmtStep(s){ // for display: "3:00" for time, "400מ׳" for dist
-  return s.mode==='time'? mmss(s.value) : s.value+' מ׳';
+function fmtStep(s){ // for display: "3:00" for time, "400m" for dist
+  return s.mode==='time'? mmss(s.value) : s.value+' '+t('meterShort');
 }
 
 /* ============ state ============ */
 let S={
   offset:0, sel:new Date().getDay(),
+  lang: store.get('lang','he'),
   plan: store.get('plan',{}),
   profile: store.get('profile',{name:'', maxHR:'', restHR:'', thrPace:''}),
   sheet:null, // {mode:'edit'|'send', draft, editIndex}
@@ -288,37 +358,44 @@ const app=document.getElementById('app');
 function loginScreen(){
   return `<div class="gate">
     <div class="brand"><h1 class="disp">מסלול</h1></div>
-    <div class="sub">תוכנית האימונים שלך, מסונכרנת בין כל המכשירים. התחבר עם חשבון Google כדי להמשיך.</div>
+    <div class="sub">${t('gateSub')}</div>
     <button class="googlebtn" onclick="signInGoogle()">
       <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.4 30.4 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.6c-.5 3-2.2 5.5-4.7 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 19.3c-.5 1.5-.8 3.1-.8 4.7s.3 3.2.8 4.7l-7.9 6.1C1 31.5 0 27.9 0 24s1-7.5 2.6-10.8l7.9 6.1z"/><path fill="#34A853" d="M24 48c6.4 0 11.9-2.1 15.8-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.2 2.3-6.3 0-11.6-3.5-13.5-9.7l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
-      התחבר עם Google
+      ${t('googleSignIn')}
     </button>
   </div>`;
 }
 function loadingScreen(){ return `<div class="gate"><div class="brand"><h1 class="disp">מסלול</h1></div></div>`; }
 function render(){
+  document.documentElement.lang=S.lang;
+  document.documentElement.dir=S.lang==='he'?'rtl':'ltr';
   if(!AUTH.ready){ app.innerHTML=loadingScreen(); return; }
   if(!AUTH.session){ app.innerHTML=loginScreen(); return; }
   const wk=weekDates(S.offset);
   const selDate=wk[S.sel];
-  const rng=`${wk[0].getDate()} ${MONTHS[wk[0].getMonth()]} – ${wk[6].getDate()} ${MONTHS[wk[6].getMonth()]}`;
+  const M=MONTHS_I18N[S.lang];
+  const rng=`${wk[0].getDate()} ${M[wk[0].getMonth()]} – ${wk[6].getDate()} ${M[wk[6].getMonth()]}`;
   const yr=wk[6].getFullYear();
   const initials=(S.profile.name||'?').trim().charAt(0)||'?';
   const weekHasWorkouts = wk.some(d=>dayWorkouts(d).length);
+  const prevArrow=S.lang==='he'?'›':'‹', nextArrow=S.lang==='he'?'‹':'›';
 
   app.innerHTML=`
   <header>
     <div class="brand"><h1 class="disp">מסלול</h1><span class="tick"></span></div>
-    <button class="profbtn" onclick="openProfile()">${initials.toUpperCase()}</button>
+    <div class="hdrbtns">
+      <button class="langbtn" onclick="setLang('${S.lang==='he'?'en':'he'}')">${S.lang==='he'?'EN':'עב'}</button>
+      <button class="profbtn" onclick="openProfile()">${initials.toUpperCase()}</button>
+    </div>
   </header>
 
   <div class="weeknav">
-    <button class="navbtn" onclick="nav(-1)">›</button>
+    <button class="navbtn" onclick="nav(-1)">${prevArrow}</button>
     <div style="text-align:center">
       <div class="rng disp">${rng}</div>
-      <div class="sub mono">${yr}${S.offset===0?' · השבוע':''}</div>
+      <div class="sub mono">${yr}${S.offset===0?' '+t('thisWeek'):''}</div>
     </div>
-    <button class="navbtn" onclick="nav(1)">‹</button>
+    <button class="navbtn" onclick="nav(1)">${nextArrow}</button>
   </div>
 
   <div class="strip" id="strip">
@@ -326,7 +403,7 @@ function render(){
       const ws=dayWorkouts(d);
       const isToday=ymd(d)===ymd(new Date());
       return `<button class="day ${i===S.sel?'sel':''} ${isToday?'today':''}" onclick="pick(${i})">
-        <div class="dn">${HEB_DAYS[i]}</div>
+        <div class="dn">${DAYS[S.lang][i]}</div>
         <div class="dd">${d.getDate()}</div>
         <div class="dots">${ws.map(w=>`<span class="dot" style="background:var(${TYPES[w.type].color})"></span>`).join('')}</div>
       </button>`;
@@ -335,16 +412,16 @@ function render(){
 
   <div class="detail">
     <div class="dhead">
-      <div class="t disp">יום ${HEB_DAYS[S.sel]}׳</div>
-      <div class="n mono">${selDate.getDate()} ${MONTHS[selDate.getMonth()]}</div>
+      <div class="t disp">${S.lang==='he'?'יום '+DAYS.he[S.sel]+'׳':DAYS.en[S.sel]}</div>
+      <div class="n mono">${selDate.getDate()} ${M[selDate.getMonth()]}</div>
     </div>
     ${renderDay(selDate)}
-    <button class="addbtn" onclick="openEditor()"><span class="p">+</span> הוסף אימון ליום זה</button>
+    <button class="addbtn" onclick="openEditor()"><span class="p">+</span> ${t('addWorkout')}</button>
   </div>
 
   <div class="sendbar">
     <button class="send" ${weekHasWorkouts?'':'disabled'} onclick="openSend()">
-      שלח שבוע לגרמין
+      ${t('sendWeek')}
     </button>
   </div>
   ${renderSheet()}`;
@@ -355,8 +432,8 @@ function render(){
 function renderDay(date){
   const ws=dayWorkouts(date);
   if(!ws.length) return `<div class="empty">
-    <div class="big">אין אימון ליום זה</div>
-    <div>בחר סוג אימון והגדר חימום, מקטעים ושחרור</div></div>`;
+    <div class="big">${t('emptyBig')}</div>
+    <div>${t('emptySub')}</div></div>`;
   return ws.map((w,idx)=>renderCard(w,idx)).join('');
 }
 
@@ -367,31 +444,31 @@ function renderCard(w,idx){
   return `<div class="card">
     <div class="top">
       <span class="badge" style="background:var(${col}); color:#160b08">${w.name}</span>
-      <span class="dur">${mmss(total)} · ~${Math.round(total/60)} דק׳</span>
+      <span class="dur">${mmss(total)} · ~${Math.round(total/60)} ${t('min')}</span>
     </div>
     <div class="profile">${bar}</div>
     <div class="steps">
       <div class="step"><span class="pip" style="background:var(--warm)"></span>
-        <span class="lbl">חימום</span><span class="val">${mmss(w.warmupSec)}</span></div>
+        <span class="lbl">${t('warmup')}</span><span class="val">${mmss(w.warmupSec)}</span></div>
       ${w.blocks.map(b=>renderBlockView(b)).join('')}
       <div class="step"><span class="pip" style="background:var(--warm)"></span>
-        <span class="lbl">שחרור</span><span class="val">${mmss(w.cooldownSec)}</span></div>
+        <span class="lbl">${t('cooldown')}</span><span class="val">${mmss(w.cooldownSec)}</span></div>
     </div>
     <div class="cardacts">
-      <button onclick="openEditor(${idx})">ערוך</button>
-      <button class="del" onclick="delWorkout(${idx})">מחק</button>
+      <button onclick="openEditor(${idx})">${t('edit')}</button>
+      <button class="del" onclick="delWorkout(${idx})">${t('del')}</button>
     </div>
   </div>`;
 }
 function renderBlockView(b){
   if(b.kind==='steady') return `<div class="step"><span class="pip" style="background:var(--easy)"></span>
-    <span class="lbl">ריצה רציפה</span><span class="val">${fmtStep(b)}</span></div>`;
+    <span class="lbl">${t('steadyRun')}</span><span class="val">${fmtStep(b)}</span></div>`;
   return `<div class="rep">
-    <div class="rh"><span class="x mono">${b.reps}×</span> חזרות</div>
+    <div class="rh"><span class="x mono">${b.reps}×</span> ${t('reps')}</div>
     <div class="step"><span class="pip" style="background:var(--work)"></span>
-      <span class="lbl">מאמץ</span><span class="val">${fmtStep(b.work)}</span></div>
+      <span class="lbl">${t('effort')}</span><span class="val">${fmtStep(b.work)}</span></div>
     <div class="step"><span class="pip" style="background:var(--rec)"></span>
-      <span class="lbl">התאוששות</span><span class="val">${fmtStep(b.recovery)}</span></div>
+      <span class="lbl">${t('recovery')}</span><span class="val">${fmtStep(b.recovery)}</span></div>
   </div>`;
 }
 
@@ -408,25 +485,25 @@ function editorSheet(){
   const d=S.sheet.draft;
   return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
     <div class="grab"></div>
-    <h2 class="disp">${S.sheet.editIndex==null?'אימון חדש':'עריכת אימון'}</h2>
+    <h2 class="disp">${S.sheet.editIndex==null?t('newWorkout'):t('editWorkout')}</h2>
     <div class="types">
-      ${Object.entries(TYPES).map(([k,v])=>`<button class="type ${d.type===k?'on':''}" onclick="setType('${k}')">
-        <div class="tn">${v.name}</div><div class="td">${v.desc}</div></button>`).join('')}
+      ${Object.keys(TYPES).map(k=>`<button class="type ${d.type===k?'on':''}" onclick="setType('${k}')">
+        <div class="tn">${typeLabel(k)}</div><div class="td">${typeDesc(k)}</div></button>`).join('')}
     </div>
 
-    <div class="field"><label>שם האימון</label>
+    <div class="field"><label>${t('workoutName')}</label>
       <input value="${d.name}" oninput="d_name(this.value)"></div>
 
-    <div class="field"><label>חימום (דקות)</label>${stepperHTML('warm', Math.round(d.warmupSec/60))}</div>
+    <div class="field"><label>${t('warmupMin')}</label>${stepperHTML('warm', Math.round(d.warmupSec/60))}</div>
 
-    <div class="minilbl" style="margin:4px 0 8px">מקטעים עיקריים</div>
+    <div class="minilbl" style="margin:4px 0 8px">${t('mainSegments')}</div>
     ${d.blocks.map((b,i)=>blockEditor(b,i)).join('')}
-    <button class="addblk" onclick="addBlock()">+ הוסף מקטע</button>
+    <button class="addblk" onclick="addBlock()">${t('addSegment')}</button>
 
-    <div class="field"><label>שחרור (דקות)</label>${stepperHTML('cool', Math.round(d.cooldownSec/60))}</div>
+    <div class="field"><label>${t('cooldownMin')}</label>${stepperHTML('cool', Math.round(d.cooldownSec/60))}</div>
 
-    <button class="primary disp" onclick="saveWorkout()">שמור אימון</button>
-    <button class="ghost" onclick="closeSheet()">ביטול</button>
+    <button class="primary disp" onclick="saveWorkout()">${t('saveWorkout')}</button>
+    <button class="ghost" onclick="closeSheet()">${t('cancel')}</button>
   </div></div>`;
 }
 function stepperHTML(key,val){
@@ -437,27 +514,27 @@ function stepperHTML(key,val){
 }
 function blockEditor(b,i){
   if(b.kind==='steady') return `<div class="blk">
-    <div class="bh"><span class="bt">ריצה רציפה</span>
-      <button class="rm" onclick="rmBlock(${i})">הסר</button></div>
+    <div class="bh"><span class="bt">${t('steadyRun')}</span>
+      <button class="rm" onclick="rmBlock(${i})">${t('remove')}</button></div>
     ${segEditor(b,i,'steady')}</div>`;
   return `<div class="blk">
-    <div class="bh"><span class="bt">חזרות אינטרוול</span>
-      <button class="rm" onclick="rmBlock(${i})">הסר</button></div>
-    <div class="minilbl">מספר חזרות</div>
+    <div class="bh"><span class="bt">${t('intervalReps')}</span>
+      <button class="rm" onclick="rmBlock(${i})">${t('remove')}</button></div>
+    <div class="minilbl">${t('repCount')}</div>
     ${stepperHTML('reps'+i, b.reps)}
     <div class="seg2" style="margin-top:11px">
-      <div><div class="minilbl">מאמץ</div>${segEditor(b.work,i,'work')}</div>
-      <div><div class="minilbl">התאוששות</div>${segEditor(b.recovery,i,'recovery')}</div>
+      <div><div class="minilbl">${t('effort')}</div>${segEditor(b.work,i,'work')}</div>
+      <div><div class="minilbl">${t('recovery')}</div>${segEditor(b.recovery,i,'recovery')}</div>
     </div></div>`;
 }
 function segEditor(seg,i,which){
   const isTime=seg.mode==='time';
   const val=isTime? Math.round(seg.value) : seg.value;
   return `<div class="toggle" style="margin-bottom:7px">
-      <button class="${isTime?'on':''}" onclick="segMode(${i},'${which}','time')">זמן</button>
-      <button class="${!isTime?'on':''}" onclick="segMode(${i},'${which}','dist')">מרחק</button>
+      <button class="${isTime?'on':''}" onclick="segMode(${i},'${which}','time')">${t('timeMode')}</button>
+      <button class="${!isTime?'on':''}" onclick="segMode(${i},'${which}','dist')">${t('distMode')}</button>
     </div>
-    <input class="mono" inputmode="numeric" value="${val}" placeholder="${isTime?'שניות':'מטרים'}"
+    <input class="mono" inputmode="numeric" value="${val}" placeholder="${isTime?t('seconds'):t('meters')}"
       oninput="segVal(${i},'${which}',this.value)">`;
 }
 
@@ -468,26 +545,21 @@ function sendSheet(){
   const res=S.sheet.result;
   return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
     <div class="grab"></div>
-    <h2 class="disp">שליחה לגרמין</h2>
-    <div class="note">האימונים ייווצרו ב-Garmin Connect ויתוזמנו לתאריכים. סנכרן את השעון כדי להוריד אותם.
-      ההתחברות לגרמין נעשית בשרת דרך טוקן קבוע, ללא סיסמה בבקשה.</div>
-    <div style="margin:14px 0 4px" class="minilbl">${items.length} אימונים בשבוע זה</div>
+    <h2 class="disp">${t('sendTitle')}</h2>
+    <div class="note">${t('sendNote')}</div>
+    <div style="margin:14px 0 4px" class="minilbl">${items.length} ${t('workoutsThisWeek')}</div>
     <div style="margin-bottom:14px">${items.map(it=>`<div class="step" style="padding:6px 0">
       <span class="pip" style="background:var(${TYPES[it.w.type].color})"></span>
       <span class="lbl">${it.w.name}</span>
       <span class="val">${it.date.slice(5)}</span></div>`).join('')}</div>
 
-    <div class="field"><label>קוד סודי (אופציונלי)</label>
-      <input class="mono" dir="ltr" type="password" value="${S.profile.secret||''}" placeholder="אם הגדרת API_SECRET בשרת"
-        oninput="S.profile.secret=this.value"></div>
-
     ${res? `<div style="margin-bottom:10px">${res.map(r=>`<div class="res ${r.ok?'ok':'err'}">
-        <span>${r.name} · ${r.date.slice(5)}</span><span class="mono">${r.ok?'תוזמן':'שגיאה'}</span></div>`).join('')}</div>`:''}
+        <span>${r.name} · ${r.date.slice(5)}</span><span class="mono">${r.ok?t('scheduled'):t('errorWord')}</span></div>`).join('')}</div>`:''}
 
-    <button class="primary disp" onclick="sendWeek()">${res?'שלח שוב':'שלח לגרמין'}</button>
-    <button class="ghost" onclick="showPayload()">הצג את ה-JSON שיישלח</button>
+    <button class="primary disp" onclick="sendWeek()">${res?t('sendAgain'):t('sendToGarmin')}</button>
+    <button class="ghost" onclick="showPayload()">${t('showPayload')}</button>
     ${S.sheet.payload? `<div class="payload" style="margin-top:12px">${S.sheet.payload}</div>`:''}
-    <button class="ghost" onclick="closeSheet()">סגור</button>
+    <button class="ghost" onclick="closeSheet()">${t('close')}</button>
   </div></div>`;
 }
 
@@ -496,17 +568,17 @@ function profileSheet(){
   const p=S.profile;
   return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
     <div class="grab"></div>
-    <h2 class="disp">הפרופיל שלי</h2>
-    <div class="field"><label>שם</label><input value="${p.name||''}" oninput="S.profile.name=this.value"></div>
+    <h2 class="disp">${t('profileTitle')}</h2>
+    <div class="field"><label>${t('name')}</label><input value="${p.name||''}" oninput="S.profile.name=this.value"></div>
     <div class="row2">
-      <div class="field"><label>דופק מקסימלי</label><input class="mono" inputmode="numeric" value="${p.maxHR||''}" oninput="S.profile.maxHR=this.value"></div>
-      <div class="field"><label>דופק מנוחה</label><input class="mono" inputmode="numeric" value="${p.restHR||''}" oninput="S.profile.restHR=this.value"></div>
+      <div class="field"><label>${t('maxHR')}</label><input class="mono" inputmode="numeric" value="${p.maxHR||''}" oninput="S.profile.maxHR=this.value"></div>
+      <div class="field"><label>${t('restHR')}</label><input class="mono" inputmode="numeric" value="${p.restHR||''}" oninput="S.profile.restHR=this.value"></div>
     </div>
-    <div class="field"><label>קצב סף (דק׳/ק״מ)</label><input class="mono" dir="ltr" value="${p.thrPace||''}" placeholder="4:30" oninput="S.profile.thrPace=this.value"></div>
-    <div class="note">מחובר כ-${AUTH.session?.user?.email||''}. התוכנית מסונכרנת אוטומטית לכל המכשירים שבהם תתחבר עם אותו חשבון.</div>
-    <button class="primary disp" onclick="saveProfile()" style="margin-top:14px">שמור</button>
-    <button class="ghost signout" onclick="signOut()">התנתק</button>
-    <button class="ghost" onclick="closeSheet()">סגור</button>
+    <div class="field"><label>${t('thrPace')}</label><input class="mono" dir="ltr" value="${p.thrPace||''}" placeholder="4:30" oninput="S.profile.thrPace=this.value"></div>
+    <div class="note">${t('connectedAs')}${AUTH.session?.user?.email||''}${t('syncNote')}</div>
+    <button class="primary disp" onclick="saveProfile()" style="margin-top:14px">${t('save')}</button>
+    <button class="ghost signout" onclick="signOut()">${t('signOut')}</button>
+    <button class="ghost" onclick="closeSheet()">${t('close')}</button>
   </div></div>`;
 }
 
@@ -572,14 +644,13 @@ async function sendWeek(){
   const url=BACKEND_URL;
   save();
   const headers={'Content-Type':'application/json'};
-  if((S.profile.secret||'').trim()) headers['x-api-secret']=S.profile.secret.trim();
   try{
     const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(buildPayload())});
     const data=await r.json();
-    if(data.error){ alert('השרת החזיר שגיאה: '+data.error); return; }
+    if(data.error){ alert(t('serverErrorAlert')+data.error); return; }
     S.sheet.result=data.results||[]; render();
   }catch(e){
-    alert('השליחה נכשלה: '+e.message+'\nודא שה-backend פרוס ושכתובת ה-URL נכונה.');
+    alert(t('sendFailedAlert')+e.message+t('sendFailedHint'));
   }
 }
 
