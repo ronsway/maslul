@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Rubik:wght@500;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   :root{
     --ink:#0E1116; --panel:#171B22; --panel2:#1E242E; --line:#2A313D;
@@ -158,6 +159,18 @@
   .res{border-radius:12px; padding:11px 12px; margin-bottom:8px; font-size:14px; display:flex; justify-content:space-between; gap:10px;}
   .res.ok{background:#12251f; border:1px solid #1e3a30; color:#8fe6cf;}
   .res.err{background:#2a1512; border:1px solid #3a201c; color:#ff9d8c;}
+
+  /* ---- auth gate ---- */
+  .gate{min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:24px; text-align:center; gap:22px;}
+  .gate .brand h1{font-family:'Rubik'; font-weight:800; font-size:34px; margin:0;}
+  .gate .sub{color:var(--muted); font-size:14px; max-width:280px; line-height:1.6;}
+  .googlebtn{display:flex; align-items:center; justify-content:center; gap:10px;
+    background:#fff; color:#1f1f1f; border-radius:14px; padding:14px 22px;
+    font-family:'Rubik'; font-weight:700; font-size:15px; box-shadow:var(--shadow);}
+  .googlebtn:active{transform:translateY(1px);}
+  .googlebtn svg{width:19px; height:19px;}
+  .signout{color:var(--muted); font-size:13px; font-weight:600; margin-top:4px;}
 </style>
 </head>
 <body>
@@ -175,6 +188,31 @@ const store = (()=>{ let mem={}; let ok=true;
 
 /* ============ config ============ */
 const BACKEND_URL='https://maslul-backend.vercel.app/schedule-week';
+const SUPABASE_URL='https://qvbdnaeewytfoolmubch.supabase.co';
+const SUPABASE_ANON_KEY='sb_publishable_DauS9FSkZqkPK6lCld-Umw_zCom2X8w';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+
+/* ============ auth ============ */
+let AUTH={ready:false, session:null};
+async function loadCloudData(userId){
+  const {data}=await sb.from('user_data').select('plan, profile').eq('user_id',userId).maybeSingle();
+  if(data){
+    S.plan=data.plan||{};
+    S.profile=Object.assign({name:'',maxHR:'',restHR:'',thrPace:''}, data.profile||{});
+    store.set('plan',S.plan); store.set('profile',S.profile);
+  } else {
+    await sb.from('user_data').upsert({user_id:userId, plan:S.plan, profile:S.profile});
+  }
+}
+async function signInGoogle(){
+  await sb.auth.signInWithOAuth({provider:'google', options:{redirectTo:window.location.origin+window.location.pathname}});
+}
+async function signOut(){ await sb.auth.signOut(); }
+sb.auth.onAuthStateChange(async (event,session)=>{
+  AUTH.session=session; AUTH.ready=true;
+  if(session && (event==='SIGNED_IN' || event==='INITIAL_SESSION')) await loadCloudData(session.user.id);
+  render();
+});
 
 /* ============ helpers ============ */
 const HEB_DAYS=['א','ב','ג','ד','ה','ו','ש'];
@@ -239,12 +277,28 @@ let S={
   profile: store.get('profile',{name:'', maxHR:'', restHR:'', thrPace:''}),
   sheet:null, // {mode:'edit'|'send', draft, editIndex}
 };
-function save(){ store.set('plan',S.plan); store.set('profile',S.profile); }
+function save(){
+  store.set('plan',S.plan); store.set('profile',S.profile);
+  if(AUTH.session) sb.from('user_data').upsert({user_id:AUTH.session.user.id, plan:S.plan, profile:S.profile});
+}
 function dayWorkouts(date){ return S.plan[ymd(date)]||[]; }
 
 /* ============ render ============ */
 const app=document.getElementById('app');
+function loginScreen(){
+  return `<div class="gate">
+    <div class="brand"><h1 class="disp">מסלול</h1></div>
+    <div class="sub">תוכנית האימונים שלך, מסונכרנת בין כל המכשירים. התחבר עם חשבון Google כדי להמשיך.</div>
+    <button class="googlebtn" onclick="signInGoogle()">
+      <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.4 30.4 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.6c-.5 3-2.2 5.5-4.7 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 19.3c-.5 1.5-.8 3.1-.8 4.7s.3 3.2.8 4.7l-7.9 6.1C1 31.5 0 27.9 0 24s1-7.5 2.6-10.8l7.9 6.1z"/><path fill="#34A853" d="M24 48c6.4 0 11.9-2.1 15.8-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.2 2.3-6.3 0-11.6-3.5-13.5-9.7l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
+      התחבר עם Google
+    </button>
+  </div>`;
+}
+function loadingScreen(){ return `<div class="gate"><div class="brand"><h1 class="disp">מסלול</h1></div></div>`; }
 function render(){
+  if(!AUTH.ready){ app.innerHTML=loadingScreen(); return; }
+  if(!AUTH.session){ app.innerHTML=loginScreen(); return; }
   const wk=weekDates(S.offset);
   const selDate=wk[S.sel];
   const rng=`${wk[0].getDate()} ${MONTHS[wk[0].getMonth()]} – ${wk[6].getDate()} ${MONTHS[wk[6].getMonth()]}`;
@@ -449,8 +503,9 @@ function profileSheet(){
       <div class="field"><label>דופק מנוחה</label><input class="mono" inputmode="numeric" value="${p.restHR||''}" oninput="S.profile.restHR=this.value"></div>
     </div>
     <div class="field"><label>קצב סף (דק׳/ק״מ)</label><input class="mono" dir="ltr" value="${p.thrPace||''}" placeholder="4:30" oninput="S.profile.thrPace=this.value"></div>
-    <div class="note">בהמשך נחבר כאן כניסה אישית מלאה (Supabase) כדי שכל אימון יישמר לחשבון שלך בענן ולא רק במכשיר הזה.</div>
+    <div class="note">מחובר כ-${AUTH.session?.user?.email||''}. התוכנית מסונכרנת אוטומטית לכל המכשירים שבהם תתחבר עם אותו חשבון.</div>
     <button class="primary disp" onclick="saveProfile()" style="margin-top:14px">שמור</button>
+    <button class="ghost signout" onclick="signOut()">התנתק</button>
     <button class="ghost" onclick="closeSheet()">סגור</button>
   </div></div>`;
 }
