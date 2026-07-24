@@ -190,16 +190,19 @@ function startOfWeek(offset){ // Sunday-start week
 function weekDates(offset){ const s=startOfWeek(offset); return [...Array(7)].map((_,i)=>{const d=new Date(s); d.setDate(s.getDate()+i); return d;}); }
 
 const TYPES={
-  intervals:{name:'אינטרוולים', desc:'מקטעי מאמץ מהיר עם התאוששות', color:'--work'},
-  hills:{name:'עליות', desc:'ריצת עליות עם ג׳וגינג ירידה', color:'--work'},
-  fartlek:{name:'פארטלק', desc:'משחקי קצב, האצות משתנות', color:'--work'},
-  volume:{name:'נפח', desc:'ריצה רציפה בקצב קל', color:'--easy'},
+  intervals:{name:'אינטרוולים', en:'Intervals', desc:'מקטעי מאמץ מהיר עם התאוששות', color:'--work'},
+  hills:{name:'עליות', en:'Hills', desc:'ריצת עליות עם ג׳וגינג ירידה', color:'--work'},
+  fartlek:{name:'פארטלק', en:'Fartlek', desc:'משחקי קצב, האצות משתנות', color:'--work'},
+  volume:{name:'נפח', en:'Volume', desc:'ריצה רציפה בקצב קל', color:'--easy'},
 };
 /* seconds-per-meter estimates, for the visual profile bar only */
 const PACE={work:0.27, recovery:0.39, easy:0.36};
 
-function defaultWorkout(type){
-  const base={id:uid(), type, name:TYPES[type].name, warmupSec:600, cooldownSec:600, blocks:[]};
+const WEEKDAY_EN=['SUN','MON','TUE','WED','THU','FRI','SAT'];
+function autoName(type,date){ return pad(date.getDate())+'_'+pad(date.getMonth()+1)+'_'+WEEKDAY_EN[date.getDay()]+'_'+TYPES[type].en; }
+
+function defaultWorkout(type,date){
+  const base={id:uid(), type, name:autoName(type,date), warmupSec:600, cooldownSec:600, blocks:[]};
   if(type==='intervals') base.blocks=[{kind:'repeat', reps:6,
     work:{mode:'time', value:180}, recovery:{mode:'time', value:120}}];
   if(type==='hills') base.blocks=[{kind:'repeat', reps:8,
@@ -461,12 +464,12 @@ function closeSheet(){ S.sheet=null; render(); }
 
 function openEditor(idx){
   const date=weekDates(S.offset)[S.sel];
-  if(idx==null) S.sheet={mode:'edit', editIndex:null, draft:defaultWorkout('intervals')};
+  if(idx==null) S.sheet={mode:'edit', editIndex:null, draft:defaultWorkout('intervals',date)};
   else S.sheet={mode:'edit', editIndex:idx, draft:JSON.parse(JSON.stringify(dayWorkouts(date)[idx]))};
   render();
 }
-function setType(k){ const cur=S.sheet.draft; const nw=defaultWorkout(k);
-  nw.id=cur.id; S.sheet.draft=nw; render(); }
+function setType(k){ const cur=S.sheet.draft; const date=weekDates(S.offset)[S.sel];
+  const nw=defaultWorkout(k,date); nw.id=cur.id; S.sheet.draft=nw; render(); }
 function d_name(v){ S.sheet.draft.name=v; }
 function bump(key,dir){ const d=S.sheet.draft;
   if(key==='warm') d.warmupSec=Math.max(0,d.warmupSec+dir*60);
