@@ -44,7 +44,8 @@
   .weeknav .rng{font-family:'Rubik'; font-weight:700; font-size:15px;}
   .weeknav .sub{color:var(--muted); font-size:12px; margin-top:1px;}
   .navbtn{width:34px; height:34px; border-radius:10px; background:var(--panel);
-    border:1px solid var(--line); display:grid; place-items:center; color:var(--muted); font-size:18px;}
+    border:1px solid var(--line); display:grid; place-items:center; color:var(--muted); font-size:18px;
+    direction:ltr; unicode-bidi:isolate;}
   .navbtn:active{background:var(--panel2);}
 
   .strip{display:grid; grid-template-columns:repeat(7,1fr); gap:6px; padding:8px 14px 4px;
@@ -253,8 +254,8 @@ const T={
   repCount:{he:'מספר חזרות', en:'Number of reps'},
   timeMode:{he:'זמן', en:'Time'},
   distMode:{he:'מרחק', en:'Distance'},
-  seconds:{he:'שניות', en:'seconds'},
-  meters:{he:'מטרים', en:'meters'},
+  timeHint:{he:'לדוגמה: 3:00 או 180', en:'e.g. 3:00 or 180'},
+  distHint:{he:'לדוגמה: 400 או 5km', en:'e.g. 400 or 5km'},
   sendTitle:{he:'שליחה לגרמין', en:'Send to Garmin'},
   sendNote:{he:'האימונים ייווצרו ב-Garmin Connect ויתוזמנו לתאריכים. סנכרן את השעון כדי להוריד אותם. ההתחברות לגרמין נעשית בשרת דרך טוקן קבוע, ללא סיסמה בבקשה.',
     en:'Workouts are created in Garmin Connect and scheduled on their dates. Sync your watch to download them. The server connects to Garmin using a stored token — no password is sent.'},
@@ -337,6 +338,22 @@ const COLOR={warm:'--warm', work:'--work', recovery:'--rec', easy:'--easy'};
 function totalSecs(w){ return flattenSteps(w).reduce((a,s)=>a+s.secs,0); }
 function fmtStep(s){ // for display: "3:00" for time, "400m" for dist
   return s.mode==='time'? mmss(s.value) : s.value+' '+t('meterShort');
+}
+/* editor input parsing: accepts "3:00" or "180" for time; "400" or "5"/"5km" for distance */
+function parseTimeInput(v){
+  v=(v||'').trim();
+  if(v.includes(':')){ const [m,s]=v.split(':'); return Math.max(0,(parseInt(m)||0)*60+(parseInt(s)||0)); }
+  return Math.max(0, parseInt(v)||0);
+}
+function fmtTimeInput(sec){ return mmss(sec); }
+function parseDistInput(v){
+  v=(v||'').trim().toLowerCase().replace(',','.');
+  if(v.endsWith('km')||v.endsWith('k')||v.includes('.')) return Math.max(0, Math.round((parseFloat(v)||0)*1000));
+  return Math.max(0, parseInt(v)||0);
+}
+function fmtDistInput(m){
+  if(m>=1000) return (Math.round(m/100)/10)+'km';
+  return String(m);
 }
 
 /* ============ state ============ */
@@ -529,12 +546,12 @@ function blockEditor(b,i){
 }
 function segEditor(seg,i,which){
   const isTime=seg.mode==='time';
-  const val=isTime? Math.round(seg.value) : seg.value;
+  const val=isTime? fmtTimeInput(seg.value) : fmtDistInput(seg.value);
   return `<div class="toggle" style="margin-bottom:7px">
       <button class="${isTime?'on':''}" onclick="segMode(${i},'${which}','time')">${t('timeMode')}</button>
       <button class="${!isTime?'on':''}" onclick="segMode(${i},'${which}','dist')">${t('distMode')}</button>
     </div>
-    <input class="mono" inputmode="numeric" value="${val}" placeholder="${isTime?t('seconds'):t('meters')}"
+    <input class="mono" value="${val}" placeholder="${isTime?t('timeHint'):t('distHint')}"
       oninput="segVal(${i},'${which}',this.value)">`;
 }
 
@@ -610,7 +627,8 @@ function segMode(i,which,mode){ const b=S.sheet.draft.blocks[i];
   const seg = which==='steady'? b : b[which]; seg.mode=mode;
   if(mode==='dist' && seg.value<50) seg.value=400; render(); }
 function segVal(i,which,v){ const b=S.sheet.draft.blocks[i];
-  const seg = which==='steady'? b : b[which]; seg.value=Math.max(0, parseInt(v)||0); }
+  const seg = which==='steady'? b : b[which];
+  seg.value = seg.mode==='time'? parseTimeInput(v) : parseDistInput(v); }
 function saveWorkout(){
   const date=ymd(weekDates(S.offset)[S.sel]);
   if(!S.plan[date]) S.plan[date]=[];
