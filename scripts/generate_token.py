@@ -24,5 +24,6 @@ client = Garmin(email, password, prompt_mfa=lambda: input("MFA code (if asked): 
 client.login()
 
 print("\n\n===== copy the line below into GARTH_TOKEN =====\n")
-print(client.garth.dumps())
+# garminconnect 0.3.x exposes the garth session as client.client
+print(client.client.dumps())
 print("\n===== end =====")

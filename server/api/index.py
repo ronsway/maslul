@@ -25,10 +25,10 @@ from pydantic import BaseModel
 
 from garminconnect import Garmin
 from garminconnect.workout import (
-    RunningWorkout, WorkoutSegment,
+    RunningWorkout, WorkoutSegment, ExecutableStep,
+    ConditionType, StepType, TargetType,
     create_warmup_step, create_cooldown_step,
-    create_interval_step, create_recovery_step,
-    create_distance_interval_step, create_repeat_group,
+    create_interval_step, create_recovery_step, create_repeat_group,
 )
 
 app = FastAPI(title="Maslul Garmin Backend")
@@ -71,10 +71,10 @@ def get_client() -> Garmin:
     if not token:
         raise HTTPException(500, "GARTH_TOKEN env var is not set on the server")
     client = Garmin()
-    # loads() restores the saved OAuth1/OAuth2 tokens; auto-refresh handles the rest.
-    # NOTE: verify this call against the installed garminconnect version if it errors
-    #       (older versions may expose it as client.garth.loads or need Garmin("","")).
-    client.garth.loads(token)
+    # garminconnect 0.3.x: login(tokenstore=...) accepts the raw token string
+    # (>512 chars) produced by client.client.dumps() in scripts/generate_token.py.
+    # It restores the OAuth tokens and refreshes them if they are about to expire.
+    client.login(tokenstore=token)
     return client
 
 def check_secret(x_api_secret: Optional[str]):
@@ -84,33 +84,82 @@ def check_secret(x_api_secret: Optional[str]):
 
 # ---------- workout translation ----------
 
-def make_effort(seg: Seg, recovery: bool):
-    if recovery:
-        return create_recovery_step(float(seg.value))
+# garminconnect 0.3.x has no distance-step helper; build the step directly.
+# step_type: StepType value + its key/displayOrder as Garmin Connect expects.
+_STEP_TYPES = {
+    "interval": {"stepTypeId": StepType.INTERVAL, "stepTypeKey": "interval", "displayOrder": 3},
+    "recovery": {"stepTypeId": StepType.RECOVERY, "stepTypeKey": "recovery", "displayOrder": 4},
+}
+
+def create_distance_step(meters: float, step_order: int, kind: str) -> ExecutableStep:
+    return ExecutableStep(
+        stepOrder=step_order,
+        stepType=_STEP_TYPES[kind],
+        endCondition={
+            "conditionTypeId": ConditionType.DISTANCE,
+            "conditionTypeKey": "distance",
+            "displayOrder": 1,
+            "displayable": True,
+        },
+        endConditionValue=meters,
+        targetType={
+            "workoutTargetTypeId": TargetType.NO_TARGET,
+            "workoutTargetTypeKey": "no.target",
+            "displayOrder": 1,
+        },
+    )
+
+def make_effort(seg: Seg, recovery: bool, order: int):
+    kind = "recovery" if recovery else "interval"
     if seg.mode == "dist":
-        return create_distance_interval_step(float(seg.value))
-    return create_interval_step(float(seg.value))
+        return create_distance_step(float(seg.value), order, kind)
+    if recovery:
+        return create_recovery_step(float(seg.value), order)
+    return create_interval_step(float(seg.value), order)
 
 def build_steps(w: Workout):
     steps = []
+    order = 1
     if w.warmupSec:
-        steps.append(create_warmup_step(float(w.warmupSec)))
+        steps.append(create_warmup_step(float(w.warmupSec), order)); order += 1
     for b in w.blocks:
         if b.kind == "steady" and b.value:
             if b.mode == "dist":
-                steps.append(create_distance_interval_step(float(b.value)))
+                steps.append(create_distance_step(float(b.value), order, "interval"))
             else:
-                steps.append(create_interval_step(float(b.value)))
+                steps.append(create_interval_step(float(b.value), order))
+            order += 1
         elif b.kind == "repeat" and b.reps and b.work and b.recovery:
-            children = [make_effort(b.work, False), make_effort(b.recovery, True)]
-            steps.append(create_repeat_group(b.reps, children))
+            group_order = order
+            children = [
+                make_effort(b.work, False, order + 1),
+                make_effort(b.recovery, True, order + 2),
+            ]
+            steps.append(create_repeat_group(b.reps, children, group_order))
+            order += 3
     if w.cooldownSec:
-        steps.append(create_cooldown_step(float(w.cooldownSec)))
+        steps.append(create_cooldown_step(float(w.cooldownSec), order))
     return steps
+
+# rough seconds-per-meter used only for the required duration estimate
+_SEC_PER_METER = 0.36
+
+def _seg_secs(seg: Seg) -> float:
+    return seg.value if seg.mode == "time" else seg.value * _SEC_PER_METER
+
+def estimate_secs(w: Workout) -> int:
+    total = float(w.warmupSec + w.cooldownSec)
+    for b in w.blocks:
+        if b.kind == "steady" and b.value:
+            total += _seg_secs(Seg(mode=b.mode or "time", value=b.value))
+        elif b.kind == "repeat" and b.reps and b.work and b.recovery:
+            total += b.reps * (_seg_secs(b.work) + _seg_secs(b.recovery))
+    return int(total)
 
 def build_workout(w: Workout) -> RunningWorkout:
     return RunningWorkout(
         workoutName=w.name,
+        estimatedDurationInSecs=estimate_secs(w),
         workoutSegments=[WorkoutSegment(
             segmentOrder=1,
             sportType={"sportTypeId": 1, "sportTypeKey": "running"},
