@@ -173,6 +173,9 @@ const store = (()=>{ let mem={}; let ok=true;
   };
 })();
 
+/* ============ config ============ */
+const BACKEND_URL='https://maslul-backend.vercel.app/schedule-week';
+
 /* ============ helpers ============ */
 const HEB_DAYS=['א','ב','ג','ד','ה','ו','ש'];
 const MONTHS=['ינו','פבר','מרץ','אפר','מאי','יונ','יול','אוג','ספט','אוק','נוב','דצמ'];
@@ -230,7 +233,7 @@ function fmtStep(s){ // for display: "3:00" for time, "400מ׳" for dist
 let S={
   offset:0, sel:new Date().getDay(),
   plan: store.get('plan',{}),
-  profile: store.get('profile',{name:'', maxHR:'', restHR:'', thrPace:'', backend:''}),
+  profile: store.get('profile',{name:'', maxHR:'', restHR:'', thrPace:''}),
   sheet:null, // {mode:'edit'|'send', draft, editIndex}
 };
 function save(){ store.set('plan',S.plan); store.set('profile',S.profile); }
@@ -417,9 +420,6 @@ function sendSheet(){
       <span class="lbl">${it.w.name}</span>
       <span class="val">${it.date.slice(5)}</span></div>`).join('')}</div>
 
-    <div class="field"><label>כתובת ה-backend</label>
-      <input class="mono" dir="ltr" value="${S.profile.backend||''}" placeholder="https://your-project.vercel.app/schedule-week"
-        oninput="S.profile.backend=this.value"></div>
     <div class="field"><label>קוד סודי (אופציונלי)</label>
       <input class="mono" dir="ltr" type="password" value="${S.profile.secret||''}" placeholder="אם הגדרת API_SECRET בשרת"
         oninput="S.profile.secret=this.value"></div>
@@ -511,9 +511,8 @@ function buildPayload(){
 function openSend(){ S.sheet={mode:'send', payload:null, result:null}; render(); }
 function showPayload(){ S.sheet.payload=JSON.stringify(buildPayload(),null,2); render(); }
 async function sendWeek(){
-  const url=(S.profile.backend||'').trim();
+  const url=BACKEND_URL;
   save();
-  if(!url){ alert('הזן כתובת backend. ה-PWA לבד לא יכול לדבר עם גרמין ישירות.'); return; }
   const headers={'Content-Type':'application/json'};
   if((S.profile.secret||'').trim()) headers['x-api-secret']=S.profile.secret.trim();
   try{
