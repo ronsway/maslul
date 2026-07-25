@@ -72,6 +72,7 @@
 
   .card{background:var(--panel); border:1px solid var(--line); border-radius:18px;
     padding:15px 15px 13px; margin-bottom:12px; box-shadow:var(--shadow);}
+  .card.done{opacity:.55;}
   .card .top{display:flex; align-items:center; justify-content:space-between; margin-bottom:11px;}
   .badge{font-family:'Rubik'; font-weight:700; font-size:13px; padding:5px 11px; border-radius:9px;}
   .card .dur{font-family:'JetBrains Mono'; font-weight:700; font-size:14px; color:var(--muted);}
@@ -92,6 +93,13 @@
   .cardacts button{flex:1; padding:9px; border-radius:11px; font-weight:700; font-size:14px;
     border:1px solid var(--line); background:var(--panel2);}
   .cardacts .del{color:#ff7a68; border-color:#3a2422;}
+  .cardacts .donebtn.on{background:var(--rec); color:#062019; border-color:var(--rec);}
+
+  /* ---- weekly km bar ---- */
+  .kmbar{padding:2px 18px 10px;}
+  .kmbar .track{height:10px; border-radius:6px; background:var(--panel); border:1px solid var(--line); overflow:hidden;}
+  .kmbar .fill{height:100%; background:linear-gradient(90deg,var(--work),var(--warm)); border-radius:6px; transition:width .3s ease;}
+  .kmbar .lbl{display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-top:6px;}
 
   .addbtn{width:100%; padding:14px; border-radius:15px; background:var(--panel);
     border:1px solid var(--line); font-family:'Rubik'; font-weight:700; font-size:15px;
@@ -288,6 +296,10 @@ const T={
   min:{he:'דק׳', en:'min'},
   meterShort:{he:'מ׳', en:'m'},
   kmShort:{he:'ק״מ', en:'km'},
+  backToToday:{he:'חזרה להיום', en:'Back to today'},
+  doneWord:{he:'בוצע', en:'Done'},
+  markDone:{he:'סמן כבוצע', en:'Mark done'},
+  weeklyKm:{he:'ק״מ השבוע', en:'km this week'},
   autoGenerate:{he:'✨ צור שבוע אוטומטית', en:'✨ Auto-generate week'},
   genConfigTitle:{he:'תכנון השבוע', en:'Plan the week'},
   pickDaysLabel:{he:'באילו ימים תרצה להתאמן השבוע?', en:'Which days do you want to train this week?'},
@@ -346,7 +358,7 @@ const WEEKDAY_EN=['SUN','MON','TUE','WED','THU','FRI','SAT'];
 function autoName(type,date){ return pad(date.getDate())+'_'+pad(date.getMonth()+1)+'_'+WEEKDAY_EN[date.getDay()]+'_'+TYPES[type].en; }
 
 function defaultWorkout(type,date){
-  const base={id:uid(), type, name:autoName(type,date), warmupSec:600, cooldownSec:600, blocks:[]};
+  const base={id:uid(), type, name:autoName(type,date), warmupSec:600, cooldownSec:600, blocks:[], done:false};
   if(type==='intervals') base.blocks=[{kind:'repeat', reps:6,
     work:{mode:'time', value:180}, recovery:{mode:'time', value:120}}];
   if(type==='hills') base.blocks=[{kind:'repeat', reps:8,
@@ -384,13 +396,30 @@ function buildRaceSplits(km){
 function raceWorkouts(race){
   const splits=race.km? buildRaceSplits(race.km) : [];
   return [
-    { id:'race-'+race.id+'-warm', type:'volume', name:t('warmup')+' · '+race.name, raceId:race.id,
+    { id:'race-'+race.id+'-warm', type:'volume', name:t('warmup')+' · '+race.name, raceId:race.id, done:false,
       warmupSec:0, cooldownSec:0, blocks:[{kind:'steady', mode:'time', value:900}] },
-    { id:'race-'+race.id+'-main', type:'race', name:race.name, raceId:race.id,
+    { id:'race-'+race.id+'-main', type:'race', name:race.name, raceId:race.id, done:false,
       warmupSec:0, cooldownSec:0, blocks:splits },
-    { id:'race-'+race.id+'-cool', type:'volume', name:t('cooldown')+' · '+race.name, raceId:race.id,
+    { id:'race-'+race.id+'-cool', type:'volume', name:t('cooldown')+' · '+race.name, raceId:race.id, done:false,
       warmupSec:0, cooldownSec:0, blocks:[{kind:'steady', mode:'time', value:900}] },
   ];
+}
+/* rough total km for a workout, using the same PACE constants as the visual profile bar */
+function workoutKm(w){
+  let meters=0;
+  if(w.warmupSec) meters+=w.warmupSec/PACE.easy;
+  w.blocks.forEach(b=>{
+    if(b.kind==='repeat'){
+      for(let i=0;i<b.reps;i++){
+        meters += b.work.mode==='dist'? b.work.value : b.work.value/PACE.work;
+        meters += b.recovery.mode==='dist'? b.recovery.value : b.recovery.value/PACE.recovery;
+      }
+    } else {
+      meters += b.mode==='dist'? b.value : b.value/PACE.easy;
+    }
+  });
+  if(w.cooldownSec) meters+=w.cooldownSec/PACE.easy;
+  return meters/1000;
 }
 /* estimate seconds for any step (for bar widths + total duration) */
 function stepSecs(mode,value,kind){ return mode==='time'? value : Math.round(value*PACE[kind]); }
@@ -582,6 +611,10 @@ function render(){
   const initials=(S.profile.name||'?').trim().charAt(0)||'?';
   const weekHasWorkouts = wk.some(d=>dayWorkouts(d).length);
   const prevArrow=S.lang==='he'?'›':'‹', nextArrow=S.lang==='he'?'‹':'›';
+  const weekWorkouts=wk.flatMap(d=>dayWorkouts(d));
+  const totalKm=weekWorkouts.reduce((a,w)=>a+workoutKm(w),0);
+  const doneKm=weekWorkouts.reduce((a,w)=>a+(w.done?workoutKm(w):0),0);
+  const kmPct=totalKm>0? Math.min(100, Math.round(doneKm/totalKm*100)) : 0;
 
   app.innerHTML=`
   <header>
@@ -592,11 +625,18 @@ function render(){
     </div>
   </header>
 
+  ${totalKm>0? `<div class="kmbar">
+    <div class="track"><div class="fill" style="width:${kmPct}%"></div></div>
+    <div class="lbl"><span class="mono">${doneKm.toFixed(1)} / ${totalKm.toFixed(1)} ${t('weeklyKm')}</span><span>${kmPct}%</span></div>
+  </div>` : ''}
+
   <div class="weeknav">
     <button class="navbtn" onclick="nav(-1)">${prevArrow}</button>
     <div style="text-align:center">
       <div class="rng disp">${rng}</div>
-      <div class="sub mono">${yr}${S.offset===0?' '+t('thisWeek'):''}</div>
+      ${S.offset===0
+        ? `<div class="sub mono">${yr} ${t('thisWeek')}</div>`
+        : `<button class="sub mono" style="text-decoration:underline" onclick="nav(${-S.offset})">${yr} · ${t('backToToday')}</button>`}
     </div>
     <button class="navbtn" onclick="nav(1)">${nextArrow}</button>
   </div>
@@ -648,7 +688,7 @@ function renderCard(w,idx){
   const steps=flattenSteps(w); const total=steps.reduce((a,s)=>a+s.secs,0);
   const bar=steps.map(s=>`<div class="seg" style="flex:${s.secs}; background:var(${COLOR[s.intensity]})"></div>`).join('');
   const col=TYPES[w.type].color;
-  return `<div class="card">
+  return `<div class="card ${w.done?'done':''}">
     <div class="top">
       <span class="badge" style="background:var(${col}); color:#160b08">${w.name}</span>
       <span class="dur">${mmss(total)} · ~${Math.round(total/60)} ${t('min')}</span>
@@ -662,6 +702,7 @@ function renderCard(w,idx){
         <span class="lbl">${t('cooldown')}</span><span class="val">${mmss(w.cooldownSec)}</span></div>
     </div>
     <div class="cardacts">
+      <button class="donebtn ${w.done?'on':''}" onclick="toggleDone(${idx})">${w.done?'✓ '+t('doneWord'):t('markDone')}</button>
       <button onclick="openEditor(${idx})">${t('edit')}</button>
       <button class="del" onclick="delWorkout(${idx})">${t('del')}</button>
     </div>
@@ -952,6 +993,11 @@ function delWorkout(idx){
   const w=S.plan[date][idx];
   if(w && w.raceId) S.profile.races=(S.profile.races||[]).filter(r=>r.id!==w.raceId);
   S.plan[date].splice(idx,1); if(!S.plan[date].length) delete S.plan[date];
+  save(); render();
+}
+function toggleDone(idx){
+  const date=ymd(weekDates(S.offset)[S.sel]);
+  const w=S.plan[date][idx]; w.done=!w.done;
   save(); render();
 }
 
