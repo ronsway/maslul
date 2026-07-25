@@ -287,6 +287,7 @@ const T={
   sendFailedHint:{he:'\nודא שה-backend פרוס ושכתובת ה-URL נכונה.', en:'\nMake sure the backend is deployed and the URL is correct.'},
   min:{he:'דק׳', en:'min'},
   meterShort:{he:'מ׳', en:'m'},
+  kmShort:{he:'ק״מ', en:'km'},
   autoGenerate:{he:'✨ צור שבוע אוטומטית', en:'✨ Auto-generate week'},
   genConfigTitle:{he:'תכנון השבוע', en:'Plan the week'},
   pickDaysLabel:{he:'באילו ימים תרצה להתאמן השבוע?', en:'Which days do you want to train this week?'},
@@ -360,10 +361,36 @@ function defaultWorkout(type,date){
     base.blocks=[{kind:'steady', mode:'dist', value:5000}]; }
   return base;
 }
-function raceWorkout(race, date){
-  return { id:'race-'+race.id, type:'race', name:race.name, raceId:race.id,
-    warmupSec:900, cooldownSec:0,
-    blocks: race.km? [{kind:'steady', mode:'dist', value:Math.round(race.km*1000)}] : [] };
+/* per-km distance blocks for the race itself, with a mild negative-split pace target
+   built from the athlete's threshold pace (profile.thrPace): starts slightly slower
+   than goal pace, finishes slightly faster. No thrPace set -> plain unpaced km splits. */
+function buildRaceSplits(km){
+  const full=Math.floor(km);
+  const rem=Math.round((km-full)*1000);
+  const segs=[]; for(let i=0;i<full;i++) segs.push(1000);
+  if(rem>10) segs.push(rem);
+  const n=segs.length;
+  const goalPaceSec=S.profile.thrPace? parseTimeInput(S.profile.thrPace) : 0;
+  return segs.map((meters,i)=>{
+    let pace=null;
+    if(goalPaceSec){
+      const t=n>1? i/(n-1) : 0.5;
+      const factor=0.03+(-0.03-0.03)*t; // +3% (slower) at km1 -> -3% (faster) at the last km
+      pace=Math.round(goalPaceSec*(1+factor));
+    }
+    return {kind:'steady', mode:'dist', value:meters, pace};
+  });
+}
+function raceWorkouts(race){
+  const splits=race.km? buildRaceSplits(race.km) : [];
+  return [
+    { id:'race-'+race.id+'-warm', type:'volume', name:t('warmup')+' · '+race.name, raceId:race.id,
+      warmupSec:0, cooldownSec:0, blocks:[{kind:'steady', mode:'time', value:900}] },
+    { id:'race-'+race.id+'-main', type:'race', name:race.name, raceId:race.id,
+      warmupSec:0, cooldownSec:0, blocks:splits },
+    { id:'race-'+race.id+'-cool', type:'volume', name:t('cooldown')+' · '+race.name, raceId:race.id,
+      warmupSec:0, cooldownSec:0, blocks:[{kind:'steady', mode:'time', value:900}] },
+  ];
 }
 /* estimate seconds for any step (for bar widths + total duration) */
 function stepSecs(mode,value,kind){ return mode==='time'? value : Math.round(value*PACE[kind]); }
@@ -383,6 +410,7 @@ function totalSecs(w){ return flattenSteps(w).reduce((a,s)=>a+s.secs,0); }
 function fmtStep(s){ // for display: "3:00" for time, "400m" for dist
   return s.mode==='time'? mmss(s.value) : s.value+' '+t('meterShort');
 }
+function fmtKm(m){ return (m%1000===0?(m/1000):(Math.round(m/10)/100))+' '+t('kmShort'); }
 /* editor input parsing: accepts "3:00" or "180" for time; "400" or "5"/"5km" for distance */
 function parseTimeInput(v){
   v=(v||'').trim();
@@ -629,7 +657,7 @@ function renderCard(w,idx){
     <div class="steps">
       <div class="step"><span class="pip" style="background:var(--warm)"></span>
         <span class="lbl">${t('warmup')}</span><span class="val">${mmss(w.warmupSec)}</span></div>
-      ${w.blocks.map(b=>renderBlockView(b)).join('')}
+      ${w.blocks.map((b,i)=>renderBlockView(b,i,w.blocks.length)).join('')}
       <div class="step"><span class="pip" style="background:var(--warm)"></span>
         <span class="lbl">${t('cooldown')}</span><span class="val">${mmss(w.cooldownSec)}</span></div>
     </div>
@@ -639,9 +667,15 @@ function renderCard(w,idx){
     </div>
   </div>`;
 }
-function renderBlockView(b){
-  if(b.kind==='steady') return `<div class="step"><span class="pip" style="background:var(--easy)"></span>
-    <span class="lbl">${t('steadyRun')}</span><span class="val">${fmtStep(b)}</span></div>`;
+function renderBlockView(b, idx, total){
+  if(b.kind==='steady'){
+    const isSplit=total>1;
+    const label=isSplit? (t('kmShort')+' '+(idx+1)) : t('steadyRun');
+    const val=isSplit? fmtKm(b.value) : fmtStep(b);
+    const paceStr=b.pace? ' · '+mmss(b.pace)+'/'+t('kmShort') : '';
+    return `<div class="step"><span class="pip" style="background:var(--easy)"></span>
+      <span class="lbl">${label}</span><span class="val">${val}${paceStr}</span></div>`;
+  }
   return `<div class="rep">
     <div class="rh"><span class="x mono">${b.reps}×</span> ${t('reps')}</div>
     <div class="step"><span class="pip" style="background:var(--work)"></span>
@@ -691,7 +725,7 @@ function previewCard(dateStr,w){
     <div class="steps">
       <div class="step"><span class="pip" style="background:var(--warm)"></span>
         <span class="lbl">${t('warmup')}</span><span class="val">${mmss(w.warmupSec)}</span></div>
-      ${w.blocks.map(b=>renderBlockView(b)).join('')}
+      ${w.blocks.map((b,i)=>renderBlockView(b,i,w.blocks.length)).join('')}
       <div class="step"><span class="pip" style="background:var(--warm)"></span>
         <span class="lbl">${t('cooldown')}</span><span class="val">${mmss(w.cooldownSec)}</span></div>
     </div>
@@ -835,11 +869,9 @@ function closeSheet(){ S.sheet=null; render(); }
 
 function raceDraftField(k,v){ S.sheet.raceDraft[k]=v; }
 function syncRaceWorkout(race){
-  const date=new Date(race.date+'T00:00:00');
   if(!S.plan[race.date]) S.plan[race.date]=[];
-  const idx=S.plan[race.date].findIndex(w=>w.raceId===race.id);
-  const w=raceWorkout(race, date);
-  if(idx>=0) S.plan[race.date][idx]=w; else S.plan[race.date].push(w);
+  S.plan[race.date]=S.plan[race.date].filter(w=>w.raceId!==race.id);
+  S.plan[race.date].push(...raceWorkouts(race));
 }
 function addRace(){
   const d=S.sheet.raceDraft;
@@ -930,7 +962,7 @@ function buildPayload(){
     workouts.push({ date:ymd(d), name:w.name, type:w.type, sport:'running',
       warmupSec:w.warmupSec, cooldownSec:w.cooldownSec,
       blocks:w.blocks.map(b=> b.kind==='steady'
-        ? {kind:'steady', mode:b.mode, value:b.value}
+        ? {kind:'steady', mode:b.mode, value:b.value, pace:b.pace||null}
         : {kind:'repeat', reps:b.reps,
            work:{mode:b.work.mode, value:b.work.value},
            recovery:{mode:b.recovery.mode, value:b.recovery.value}} ) });

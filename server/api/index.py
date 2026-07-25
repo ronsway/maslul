@@ -50,6 +50,7 @@ class Block(BaseModel):
     recovery: Optional[Seg] = None
     mode: Optional[str] = None
     value: Optional[int] = None
+    pace: Optional[float] = None     # seconds per km target, steady+dist blocks only (e.g. race splits)
 
 class Workout(BaseModel):
     date: str                        # "YYYY-MM-DD"
@@ -91,7 +92,23 @@ _STEP_TYPES = {
     "recovery": {"stepTypeId": StepType.RECOVERY, "stepTypeKey": "recovery", "displayOrder": 4},
 }
 
-def create_distance_step(meters: float, step_order: int, kind: str) -> ExecutableStep:
+def create_distance_step(meters: float, step_order: int, kind: str, pace_sec_per_km: Optional[float] = None) -> ExecutableStep:
+    target = {
+        "workoutTargetTypeId": TargetType.NO_TARGET,
+        "workoutTargetTypeKey": "no.target",
+        "displayOrder": 1,
+    }
+    extra = {}
+    if pace_sec_per_km:
+        # Garmin pace/speed targets are expressed as a speed range in m/s;
+        # +-3% around the goal pace gives a workable band rather than a single point.
+        speed = 1000.0 / pace_sec_per_km
+        target = {
+            "workoutTargetTypeId": TargetType.PACE_ZONE,
+            "workoutTargetTypeKey": "pace.zone",
+            "displayOrder": 5,
+        }
+        extra = {"targetValueOne": round(speed * 0.97, 3), "targetValueTwo": round(speed * 1.03, 3)}
     return ExecutableStep(
         stepOrder=step_order,
         stepType=_STEP_TYPES[kind],
@@ -102,11 +119,8 @@ def create_distance_step(meters: float, step_order: int, kind: str) -> Executabl
             "displayable": True,
         },
         endConditionValue=meters,
-        targetType={
-            "workoutTargetTypeId": TargetType.NO_TARGET,
-            "workoutTargetTypeKey": "no.target",
-            "displayOrder": 1,
-        },
+        targetType=target,
+        **extra,
     )
 
 def make_effort(seg: Seg, recovery: bool, order: int):
@@ -125,7 +139,7 @@ def build_steps(w: Workout):
     for b in w.blocks:
         if b.kind == "steady" and b.value:
             if b.mode == "dist":
-                steps.append(create_distance_step(float(b.value), order, "interval"))
+                steps.append(create_distance_step(float(b.value), order, "interval", b.pace))
             else:
                 steps.append(create_interval_step(float(b.value), order))
             order += 1
