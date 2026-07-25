@@ -308,6 +308,7 @@ const T={
   addRace:{he:'+ הוסף תחרות', en:'+ Add race'},
   noRaces:{he:'אין תחרויות מוגדרות', en:'No races added yet'},
   raceNeedsFields:{he:'הזן תאריך ושם תחרות', en:'Enter a date and race name'},
+  genSkippedRaceDay:{he:'יום התחרות עצמו הושאר בלי אימון נוסף.', en:"Race day itself was left without an extra training session."},
 };
 const PHASE_NAME={
   base:{he:'בסיס', en:'Base'}, build:{he:'בנייה', en:'Build'},
@@ -332,6 +333,8 @@ const TYPES={
   hills:{name:'עליות', en:'Hills', desc:'ריצת עליות עם ג׳וגינג ירידה', descEn:'Hill repeats with jog-down recovery', color:'--work'},
   fartlek:{name:'פארטלק', en:'Fartlek', desc:'משחקי קצב, האצות משתנות', descEn:'Speed play, varying surges', color:'--work'},
   volume:{name:'נפח', en:'Volume', desc:'ריצה רציפה בקצב קל', descEn:'Continuous run at an easy pace', color:'--easy'},
+  recovery:{name:'התאוששות', en:'Recovery', desc:'ריצה קלילה וקצרה', descEn:'Short, easy recovery run', color:'--rec'},
+  race:{name:'תחרות', en:'Race', desc:'יום המרוץ עצמו', descEn:'The race day itself', color:'--warm'},
 };
 function typeLabel(k){ return S.lang==='he'? TYPES[k].name : TYPES[k].en; }
 function typeDesc(k){ return S.lang==='he'? TYPES[k].desc : TYPES[k].descEn; }
@@ -351,7 +354,16 @@ function defaultWorkout(type,date){
     work:{mode:'time', value:60}, recovery:{mode:'time', value:60}}];
   if(type==='volume'){ base.warmupSec=300; base.cooldownSec=300;
     base.blocks=[{kind:'steady', mode:'time', value:2700}]; }
+  if(type==='recovery'){ base.warmupSec=300; base.cooldownSec=300;
+    base.blocks=[{kind:'steady', mode:'time', value:1200}]; }
+  if(type==='race'){ base.warmupSec=900; base.cooldownSec=0;
+    base.blocks=[{kind:'steady', mode:'dist', value:5000}]; }
   return base;
+}
+function raceWorkout(race, date){
+  return { id:'race-'+race.id, type:'race', name:race.name, raceId:race.id,
+    warmupSec:900, cooldownSec:0,
+    blocks: race.km? [{kind:'steady', mode:'dist', value:Math.round(race.km*1000)}] : [] };
 }
 /* estimate seconds for any step (for bar widths + total duration) */
 function stepSecs(mode,value,kind){ return mode==='time'? value : Math.round(value*PACE[kind]); }
@@ -442,18 +454,43 @@ function planFactor(phase, weekNum){
   return f;
 }
 const QUALITY_TYPES=['intervals','hills','fartlek'];
+const EASY_TYPES=['volume','volume','recovery']; // weighted toward volume, recovery for variety
+function qualityCount(n, phase){
+  if(n<=0) return 0;
+  if(phase==='race') return 0; // no hard efforts the week you're racing
+  if(phase==='peak') return 1;
+  let c = n<=2 ? 1 : (n<=4 ? 1 : 2);
+  if(phase==='build' && n>=4) c=Math.min(c+1,3);
+  return Math.min(c, n);
+}
+/* choose which day-positions get a quality session, spread apart where possible,
+   randomized so regenerating doesn't always land on the same days */
+function pickQualityPositions(n, count){
+  const positions=[...Array(n).keys()];
+  const shuffled=positions.slice().sort(()=>Math.random()-0.5);
+  const chosen=[];
+  for(const p of shuffled){
+    if(chosen.length>=count) break;
+    if(n<=2 || chosen.every(c=>Math.abs(c-p)>=2)) chosen.push(p);
+  }
+  for(const p of shuffled){ if(chosen.length>=count) break; if(!chosen.includes(p)) chosen.push(p); }
+  return chosen.sort((a,b)=>a-b);
+}
 function dayTypesFor(n, phase){
-  const q1=QUALITY_TYPES[Math.floor(Math.random()*QUALITY_TYPES.length)];
-  let q2=QUALITY_TYPES[Math.floor(Math.random()*QUALITY_TYPES.length)];
-  if(q2===q1) q2=QUALITY_TYPES[(QUALITY_TYPES.indexOf(q1)+1)%QUALITY_TYPES.length];
-  const templates={
-    1:[q1], 2:[q1,'volume'], 3:[q1,'volume','volume'],
-    4:[q1,'volume',q2,'volume'], 5:[q1,'volume',q2,'volume','volume'],
-    6:[q1,'volume',q2,'volume','volume','volume'], 7:[q1,'volume',q2,'volume','volume','volume','volume'],
-  };
-  let arr=templates[Math.min(Math.max(n,1),7)] || templates[7];
-  if(phase==='peak' || phase==='race') arr=arr.map((tp,i)=>(tp!=='volume' && i>0)?'volume':tp);
-  return arr.slice(0,n);
+  const count=qualityCount(n, phase);
+  const qPositions=pickQualityPositions(n, count);
+  const qualityChoices=[]; let lastQ=null;
+  for(let i=0;i<count;i++){
+    let q=QUALITY_TYPES[Math.floor(Math.random()*QUALITY_TYPES.length)];
+    if(q===lastQ) q=QUALITY_TYPES[(QUALITY_TYPES.indexOf(q)+1)%QUALITY_TYPES.length];
+    qualityChoices.push(q); lastQ=q;
+  }
+  const arr=[]; let qi=0;
+  for(let i=0;i<n;i++){
+    if(qPositions.includes(i)){ arr.push(qualityChoices[qi]); qi++; }
+    else arr.push(EASY_TYPES[Math.floor(Math.random()*EASY_TYPES.length)]);
+  }
+  return arr;
 }
 function scaleWorkout(w, factor){
   const jitter=0.9+Math.random()*0.2; // slight variety between regenerations
@@ -472,14 +509,17 @@ function generateWeekPlan(offset, dayIdx){
   const wToRace=weeksToRaceFor(offset);
   const phase=phaseFor(wToRace);
   const factor=planFactor(phase, weekNum);
-  const sortedDays=dayIdx.slice().sort((a,b)=>a-b);
+  const raceDates=new Set((S.profile.races||[]).map(r=>r.date));
+  // don't schedule a training session on a day you're racing
+  const sortedDays=dayIdx.slice().sort((a,b)=>a-b).filter(di=>!raceDates.has(ymd(dates[di])));
+  const skippedForRace=dayIdx.length-sortedDays.length;
   const types=dayTypesFor(sortedDays.length, phase);
   const plan={};
   sortedDays.forEach((di,idx)=>{
     const date=dates[di]; const type=types[idx]||'volume';
     plan[ymd(date)]=[scaleWorkout(defaultWorkout(type,date), factor)];
   });
-  return {plan, phase, factor, weekNum, weeksToRace:wToRace, race:nextRace(offset)};
+  return {plan, phase, factor, weekNum, weeksToRace:wToRace, race:nextRace(offset), skippedForRace};
 }
 function genContextNote(offset){
   const race=nextRace(offset), w=weeksToRaceFor(offset), phase=phaseFor(w);
@@ -663,7 +703,7 @@ function generatePreviewSheet(){
   return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
     <div class="grab"></div>
     <h2 class="disp">${t('genPreviewTitle')}</h2>
-    <div class="note" style="margin-bottom:14px">${genContextNote(S.offset)}<br>${t('genOverwriteWarn')}</div>
+    <div class="note" style="margin-bottom:14px">${genContextNote(S.offset)}<br>${t('genOverwriteWarn')}${prop.skippedForRace?'<br>'+t('genSkippedRaceDay'):''}</div>
     ${dates.map(ds=>previewCard(ds, prop.plan[ds][0])).join('')}
     <button class="primary disp" onclick="applyGeneratedWeek()">${t('approveApply')}</button>
     <button class="ghost" onclick="regenerateWeek()">${t('regenerate')}</button>
@@ -794,16 +834,30 @@ function saveProfile(){ save(); closeSheet(); }
 function closeSheet(){ S.sheet=null; render(); }
 
 function raceDraftField(k,v){ S.sheet.raceDraft[k]=v; }
+function syncRaceWorkout(race){
+  const date=new Date(race.date+'T00:00:00');
+  if(!S.plan[race.date]) S.plan[race.date]=[];
+  const idx=S.plan[race.date].findIndex(w=>w.raceId===race.id);
+  const w=raceWorkout(race, date);
+  if(idx>=0) S.plan[race.date][idx]=w; else S.plan[race.date].push(w);
+}
 function addRace(){
   const d=S.sheet.raceDraft;
   if(!d.date || !d.name){ alert(t('raceNeedsFields')); return; }
   S.profile.races=(S.profile.races||[]);
-  S.profile.races.push({id:uid(), date:d.date, name:d.name, km:parseFloat(d.km)||0});
+  const race={id:uid(), date:d.date, name:d.name, km:parseFloat(d.km)||0};
+  S.profile.races.push(race);
+  syncRaceWorkout(race);
   S.sheet.raceDraft={date:'',name:'',km:''};
   save(); render();
 }
 function delRace(id){
+  const race=(S.profile.races||[]).find(r=>r.id===id);
   S.profile.races=(S.profile.races||[]).filter(r=>r.id!==id);
+  if(race && S.plan[race.date]){
+    S.plan[race.date]=S.plan[race.date].filter(w=>w.raceId!==id);
+    if(!S.plan[race.date].length) delete S.plan[race.date];
+  }
   save(); render();
 }
 
@@ -863,6 +917,8 @@ function saveWorkout(){
 }
 function delWorkout(idx){
   const date=ymd(weekDates(S.offset)[S.sel]);
+  const w=S.plan[date][idx];
+  if(w && w.raceId) S.profile.races=(S.profile.races||[]).filter(r=>r.id!==w.raceId);
   S.plan[date].splice(idx,1); if(!S.plan[date].length) delete S.plan[date];
   save(); render();
 }
