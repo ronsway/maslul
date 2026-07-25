@@ -151,6 +151,10 @@
   .addblk{width:100%; padding:11px; border-radius:12px; border:1px dashed var(--line);
     color:var(--muted); font-weight:700; font-size:13px; margin-bottom:16px;}
   .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .gendays{display:flex; gap:6px; margin-bottom:18px;}
+  .gendays button{flex:1; padding:10px 0; border-radius:10px; background:var(--panel);
+    border:1px solid var(--line); font-weight:700; font-size:12px; color:var(--muted);}
+  .gendays button.on{border-color:var(--work); background:linear-gradient(180deg,#241a19,var(--panel)); color:var(--txt);}
   .primary{width:100%; padding:15px; border-radius:14px; font-family:'Rubik'; font-weight:800; font-size:16px;
     background:linear-gradient(135deg,var(--work),#ff7b45); color:#1a0d09; margin-top:6px;}
   .ghost{width:100%; padding:14px; border-radius:14px; font-weight:700; font-size:15px;
@@ -202,7 +206,7 @@ async function loadCloudData(userId){
   const {data}=await sb.from('user_data').select('plan, profile').eq('user_id',userId).maybeSingle();
   if(data){
     S.plan=data.plan||{};
-    S.profile=Object.assign({name:'',maxHR:'',restHR:'',thrPace:''}, data.profile||{});
+    S.profile=Object.assign({name:'',maxHR:'',restHR:'',thrPace:'',races:[]}, data.profile||{});
     store.set('plan',S.plan); store.set('profile',S.profile);
   } else {
     await sb.from('user_data').upsert({user_id:userId, plan:S.plan, profile:S.profile});
@@ -280,6 +284,31 @@ const T={
   sendFailedHint:{he:'\nודא שה-backend פרוס ושכתובת ה-URL נכונה.', en:'\nMake sure the backend is deployed and the URL is correct.'},
   min:{he:'דק׳', en:'min'},
   meterShort:{he:'מ׳', en:'m'},
+  autoGenerate:{he:'✨ צור שבוע אוטומטית', en:'✨ Auto-generate week'},
+  genConfigTitle:{he:'תכנון השבוע', en:'Plan the week'},
+  pickDaysLabel:{he:'באילו ימים תרצה להתאמן השבוע?', en:'Which days do you want to train this week?'},
+  suggestPlan:{he:'הצע תוכנית', en:'Suggest plan'},
+  pickAtLeastOneDay:{he:'בחר לפחות יום אחד', en:'Pick at least one day'},
+  genPreviewTitle:{he:'הצעת תוכנית לשבוע', en:'Weekly plan proposal'},
+  genOverwriteWarn:{he:'אישור יחליף אימונים קיימים בימים שנבחרו.', en:'Approving will replace existing workouts on the selected days.'},
+  approveApply:{he:'אשר ועדכן שבוע', en:'Approve & update week'},
+  regenerate:{he:'הצע שוב', en:'Regenerate'},
+  backToConfig:{he:'חזרה', en:'Back'},
+  phaseLabel:{he:'שלב: ', en:'Phase: '},
+  weeksToRaceNote:{he:' · עוד ', en:' · '},
+  weeksToRaceSuffix:{he:' שבועות עד ', en:' weeks to '},
+  noRaceSet:{he:' · לא הוגדרה תחרות קרובה', en:' · No upcoming race set'},
+  racesTitle:{he:'תחרויות קרובות', en:'Upcoming races'},
+  raceName:{he:'שם התחרות', en:'Race name'},
+  raceDate:{he:'תאריך', en:'Date'},
+  raceDist:{he:'מרחק (ק״מ)', en:'Distance (km)'},
+  addRace:{he:'+ הוסף תחרות', en:'+ Add race'},
+  noRaces:{he:'אין תחרויות מוגדרות', en:'No races added yet'},
+  raceNeedsFields:{he:'הזן תאריך ושם תחרות', en:'Enter a date and race name'},
+};
+const PHASE_NAME={
+  base:{he:'בסיס', en:'Base'}, build:{he:'בנייה', en:'Build'},
+  peak:{he:'חידוד', en:'Peak'}, race:{he:'שבוע תחרות', en:'Race week'},
 };
 function t(k){ return T[k][S.lang]; }
 function setLang(l){ S.lang=l; store.set('lang',l); render(); }
@@ -361,7 +390,7 @@ let S={
   offset:0, sel:new Date().getDay(),
   lang: store.get('lang','he'),
   plan: store.get('plan',{}),
-  profile: store.get('profile',{name:'', maxHR:'', restHR:'', thrPace:''}),
+  profile: store.get('profile',{name:'', maxHR:'', restHR:'', thrPace:'', races:[]}),
   sheet:null, // {mode:'edit'|'send', draft, editIndex}
 };
 function save(){
@@ -369,6 +398,89 @@ function save(){
   if(AUTH.session) sb.from('user_data').upsert({user_id:AUTH.session.user.id, plan:S.plan, profile:S.profile});
 }
 function dayWorkouts(date){ return S.plan[ymd(date)]||[]; }
+
+/* ============ auto-generate weekly plan ============ */
+/* trainingWeekNumber: how many consecutive populated weeks precede this one (resets after a gap) */
+function trainingWeekNumber(offset){
+  let n=1, k=offset-1, guard=0;
+  while(weekDates(k).some(d=>dayWorkouts(d).length) && guard<52){ n++; k--; guard++; }
+  return n;
+}
+function nextRace(offset){
+  const races=(S.profile.races||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const monday=ymd(weekDates(offset)[0]);
+  return races.find(r=>r.date>=monday) || null;
+}
+function weeksToRaceFor(offset){
+  const race=nextRace(offset); if(!race) return null;
+  const monday=weekDates(offset)[0].getTime();
+  const raceD=new Date(race.date+'T00:00:00').getTime();
+  return Math.max(0, Math.round((raceD-monday)/(7*86400000)));
+}
+function phaseFor(w){
+  if(w==null) return 'base';
+  if(w<=0) return 'race';
+  if(w<=3) return 'peak';
+  if(w<=8) return 'build';
+  return 'base';
+}
+/* multiplier on the workout-type defaults: progressive growth in base/build,
+   every 4th training week is a lighter cutback week, peak/race taper down regardless of week count */
+function planFactor(phase, weekNum){
+  if(phase==='race') return 0.3;
+  if(phase==='peak') return 0.6;
+  const deload = weekNum%4===0;
+  const growth = Math.min(0.05*(weekNum-1), 0.4);
+  let f = deload? 0.7 : (1+growth);
+  if(phase==='build') f += 0.1;
+  return f;
+}
+const QUALITY_TYPES=['intervals','hills','fartlek'];
+function dayTypesFor(n, phase){
+  const q1=QUALITY_TYPES[Math.floor(Math.random()*QUALITY_TYPES.length)];
+  let q2=QUALITY_TYPES[Math.floor(Math.random()*QUALITY_TYPES.length)];
+  if(q2===q1) q2=QUALITY_TYPES[(QUALITY_TYPES.indexOf(q1)+1)%QUALITY_TYPES.length];
+  const templates={
+    1:[q1], 2:[q1,'volume'], 3:[q1,'volume','volume'],
+    4:[q1,'volume',q2,'volume'], 5:[q1,'volume',q2,'volume','volume'],
+    6:[q1,'volume',q2,'volume','volume','volume'], 7:[q1,'volume',q2,'volume','volume','volume','volume'],
+  };
+  let arr=templates[Math.min(Math.max(n,1),7)] || templates[7];
+  if(phase==='peak' || phase==='race') arr=arr.map((tp,i)=>(tp!=='volume' && i>0)?'volume':tp);
+  return arr.slice(0,n);
+}
+function scaleWorkout(w, factor){
+  const jitter=0.9+Math.random()*0.2; // slight variety between regenerations
+  const f=factor*jitter;
+  w=JSON.parse(JSON.stringify(w));
+  w.blocks=w.blocks.map(b=>{
+    if(b.kind==='steady') b.value=Math.max(600, Math.round(b.value*f/60)*60);
+    else if(b.kind==='repeat') b.reps=Math.max(3, Math.min(12, Math.round(b.reps*f)));
+    return b;
+  });
+  return w;
+}
+function generateWeekPlan(offset, dayIdx){
+  const dates=weekDates(offset);
+  const weekNum=trainingWeekNumber(offset);
+  const wToRace=weeksToRaceFor(offset);
+  const phase=phaseFor(wToRace);
+  const factor=planFactor(phase, weekNum);
+  const sortedDays=dayIdx.slice().sort((a,b)=>a-b);
+  const types=dayTypesFor(sortedDays.length, phase);
+  const plan={};
+  sortedDays.forEach((di,idx)=>{
+    const date=dates[di]; const type=types[idx]||'volume';
+    plan[ymd(date)]=[scaleWorkout(defaultWorkout(type,date), factor)];
+  });
+  return {plan, phase, factor, weekNum, weeksToRace:wToRace, race:nextRace(offset)};
+}
+function genContextNote(offset){
+  const race=nextRace(offset), w=weeksToRaceFor(offset), phase=phaseFor(w);
+  let s=t('phaseLabel')+PHASE_NAME[phase][S.lang];
+  s += race? (t('weeksToRaceNote')+w+t('weeksToRaceSuffix')+race.name) : t('noRaceSet');
+  return s;
+}
 
 /* ============ render ============ */
 const app=document.getElementById('app');
@@ -425,6 +537,10 @@ function render(){
         <div class="dots">${ws.map(w=>`<span class="dot" style="background:var(${TYPES[w.type].color})"></span>`).join('')}</div>
       </button>`;
     }).join('')}
+  </div>
+
+  <div style="padding:0 18px 4px">
+    <button class="addbtn" onclick="openGenerate()"><span class="p">✨</span> ${t('autoGenerate')}</button>
   </div>
 
   <div class="detail">
@@ -495,7 +611,58 @@ function renderSheet(){
   if(S.sheet.mode==='edit') return editorSheet();
   if(S.sheet.mode==='send') return sendSheet();
   if(S.sheet.mode==='profile') return profileSheet();
+  if(S.sheet.mode==='generate') return S.sheet.step==='preview'? generatePreviewSheet() : generateConfigSheet();
   return `<div class="scrim"></div>`;
+}
+
+/* generate sheet */
+function generateConfigSheet(){
+  const days=S.sheet.days;
+  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
+    <div class="grab"></div>
+    <h2 class="disp">${t('genConfigTitle')}</h2>
+    <div class="note" style="margin-bottom:16px">${genContextNote(S.offset)}</div>
+    <div class="minilbl" style="margin-bottom:8px">${t('pickDaysLabel')}</div>
+    <div class="gendays">
+      ${DAYS[S.lang].map((dn,i)=>`<button class="${days.includes(i)?'on':''}" onclick="toggleGenDay(${i})">${dn}</button>`).join('')}
+    </div>
+    <button class="primary disp" onclick="proposeWeek()">${t('suggestPlan')}</button>
+    <button class="ghost" onclick="closeSheet()">${t('cancel')}</button>
+  </div></div>`;
+}
+function previewCard(dateStr,w){
+  const d=new Date(dateStr+'T00:00:00');
+  const steps=flattenSteps(w); const total=steps.reduce((a,s)=>a+s.secs,0);
+  const bar=steps.map(s=>`<div class="seg" style="flex:${s.secs}; background:var(${COLOR[s.intensity]})"></div>`).join('');
+  const col=TYPES[w.type].color;
+  return `<div class="card">
+    <div class="top">
+      <span class="badge" style="background:var(${col}); color:#160b08">${w.name}</span>
+      <span class="dur">${mmss(total)} · ~${Math.round(total/60)} ${t('min')}</span>
+    </div>
+    <div class="n mono" style="margin-bottom:8px">${DAYS[S.lang][d.getDay()]} ${d.getDate()} ${MONTHS_I18N[S.lang][d.getMonth()]}</div>
+    <div class="profile">${bar}</div>
+    <div class="steps">
+      <div class="step"><span class="pip" style="background:var(--warm)"></span>
+        <span class="lbl">${t('warmup')}</span><span class="val">${mmss(w.warmupSec)}</span></div>
+      ${w.blocks.map(b=>renderBlockView(b)).join('')}
+      <div class="step"><span class="pip" style="background:var(--warm)"></span>
+        <span class="lbl">${t('cooldown')}</span><span class="val">${mmss(w.cooldownSec)}</span></div>
+    </div>
+  </div>`;
+}
+function generatePreviewSheet(){
+  const prop=S.sheet.proposal;
+  const dates=Object.keys(prop.plan).sort();
+  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
+    <div class="grab"></div>
+    <h2 class="disp">${t('genPreviewTitle')}</h2>
+    <div class="note" style="margin-bottom:14px">${genContextNote(S.offset)}<br>${t('genOverwriteWarn')}</div>
+    ${dates.map(ds=>previewCard(ds, prop.plan[ds][0])).join('')}
+    <button class="primary disp" onclick="applyGeneratedWeek()">${t('approveApply')}</button>
+    <button class="ghost" onclick="regenerateWeek()">${t('regenerate')}</button>
+    <button class="ghost" onclick="backToGenConfig()">${t('backToConfig')}</button>
+  </div></div>`;
 }
 
 function editorSheet(){
@@ -582,7 +749,8 @@ function sendSheet(){
 
 /* profile sheet */
 function profileSheet(){
-  const p=S.profile;
+  const p=S.profile; const rd=S.sheet.raceDraft;
+  const races=(p.races||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
   return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
     <div class="grab"></div>
     <h2 class="disp">${t('profileTitle')}</h2>
@@ -592,6 +760,19 @@ function profileSheet(){
       <div class="field"><label>${t('restHR')}</label><input class="mono" inputmode="numeric" value="${p.restHR||''}" oninput="S.profile.restHR=this.value"></div>
     </div>
     <div class="field"><label>${t('thrPace')}</label><input class="mono" dir="ltr" value="${p.thrPace||''}" placeholder="4:30" oninput="S.profile.thrPace=this.value"></div>
+
+    <div class="minilbl" style="margin:16px 0 8px">${t('racesTitle')}</div>
+    ${races.length? races.map(r=>`<div class="step" style="padding:6px 0">
+        <span class="lbl">${r.name} · ${r.date}${r.km?' · '+r.km+'km':''}</span>
+        <button class="rm" onclick="delRace('${r.id}')">${t('remove')}</button></div>`).join('')
+      : `<div class="note" style="margin-bottom:10px">${t('noRaces')}</div>`}
+    <div class="field"><label>${t('raceName')}</label><input value="${rd.name}" oninput="raceDraftField('name',this.value)"></div>
+    <div class="row2">
+      <div class="field"><label>${t('raceDate')}</label><input class="mono" dir="ltr" type="date" value="${rd.date}" oninput="raceDraftField('date',this.value)"></div>
+      <div class="field"><label>${t('raceDist')}</label><input class="mono" inputmode="decimal" value="${rd.km}" oninput="raceDraftField('km',this.value)"></div>
+    </div>
+    <button class="addblk" onclick="addRace()">${t('addRace')}</button>
+
     <div class="note">${t('connectedAs')}${AUTH.session?.user?.email||''}${t('syncNote')}</div>
     <button class="primary disp" onclick="saveProfile()" style="margin-top:14px">${t('save')}</button>
     <button class="ghost signout" onclick="signOut()">${t('signOut')}</button>
@@ -602,9 +783,47 @@ function profileSheet(){
 /* ============ actions ============ */
 function nav(dir){ S.offset+=dir; render(); }
 function pick(i){ S.sel=i; render(); }
-function openProfile(){ S.sheet={mode:'profile'}; render(); }
+function openProfile(){ S.sheet={mode:'profile', raceDraft:{date:'',name:'',km:''}}; render(); }
 function saveProfile(){ save(); closeSheet(); }
 function closeSheet(){ S.sheet=null; render(); }
+
+function raceDraftField(k,v){ S.sheet.raceDraft[k]=v; }
+function addRace(){
+  const d=S.sheet.raceDraft;
+  if(!d.date || !d.name){ alert(t('raceNeedsFields')); return; }
+  S.profile.races=(S.profile.races||[]);
+  S.profile.races.push({id:uid(), date:d.date, name:d.name, km:parseFloat(d.km)||0});
+  S.sheet.raceDraft={date:'',name:'',km:''};
+  save(); render();
+}
+function delRace(id){
+  S.profile.races=(S.profile.races||[]).filter(r=>r.id!==id);
+  save(); render();
+}
+
+function openGenerate(){
+  const prevWk=weekDates(S.offset-1);
+  let days=prevWk.map((d,i)=>dayWorkouts(d).length?i:null).filter(i=>i!=null);
+  if(!days.length) days=[1,3,5];
+  S.sheet={mode:'generate', step:'config', days};
+  render();
+}
+function toggleGenDay(i){
+  const days=S.sheet.days; const idx=days.indexOf(i);
+  if(idx>=0) days.splice(idx,1); else days.push(i);
+  render();
+}
+function proposeWeek(){
+  if(!S.sheet.days.length){ alert(t('pickAtLeastOneDay')); return; }
+  S.sheet.proposal=generateWeekPlan(S.offset, S.sheet.days);
+  S.sheet.step='preview'; render();
+}
+function regenerateWeek(){ proposeWeek(); }
+function backToGenConfig(){ S.sheet.step='config'; render(); }
+function applyGeneratedWeek(){
+  Object.assign(S.plan, S.sheet.proposal.plan);
+  save(); closeSheet();
+}
 
 function openEditor(idx){
   const date=weekDates(S.offset)[S.sel];
