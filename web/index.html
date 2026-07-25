@@ -106,6 +106,7 @@
   .kmbar .track{height:10px; border-radius:6px; background:var(--panel); border:1px solid var(--line); overflow:hidden;}
   .kmbar .fill{height:100%; background:linear-gradient(90deg,var(--work),var(--warm)); border-radius:6px; transition:width .3s ease;}
   .kmbar .lbl{display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-top:6px;}
+  .synclink{display:block; margin-top:8px; font-size:12px; color:var(--easy); font-weight:700; text-decoration:underline;}
 
   .addbtn{width:100%; padding:14px; border-radius:15px; background:var(--panel);
     border:1px solid var(--line); font-family:'Rubik'; font-weight:700; font-size:15px;
@@ -212,7 +213,8 @@ const store = (()=>{ let mem={}; let ok=true;
 })();
 
 /* ============ config ============ */
-const BACKEND_URL='https://maslul-backend.vercel.app/schedule-week';
+const BACKEND_BASE='https://maslul-backend.vercel.app';
+const BACKEND_URL=BACKEND_BASE+'/schedule-week';
 const SUPABASE_URL='https://qvbdnaeewytfoolmubch.supabase.co';
 const SUPABASE_ANON_KEY='sb_publishable_DauS9FSkZqkPK6lCld-Umw_zCom2X8w';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
@@ -309,6 +311,10 @@ const T={
   doneWord:{he:'בוצע', en:'Done'},
   markDone:{he:'סמן כבוצע', en:'Mark done'},
   weeklyKm:{he:'ק״מ השבוע', en:'km this week'},
+  checkCompleted:{he:'🔄 בדוק מה בוצע בגרמין', en:'🔄 Check what was completed on Garmin'},
+  syncedSuffix:{he:'אימונים סונכרנו מגרמין', en:'workouts synced from Garmin'},
+  actualLabel:{he:'בפועל', en:'Actual'},
+  scoreLabel:{he:'ציון', en:'score'},
   autoGenerate:{he:'✨ צור שבוע אוטומטית', en:'✨ Auto-generate week'},
   genConfigTitle:{he:'תכנון השבוע', en:'Plan the week'},
   pickDaysLabel:{he:'באילו ימים תרצה להתאמן השבוע?', en:'Which days do you want to train this week?'},
@@ -637,6 +643,7 @@ function render(){
   ${totalKm>0? `<div class="kmbar">
     <div class="track"><div class="fill" style="width:${kmPct}%"></div></div>
     <div class="lbl"><span class="mono">${doneKm.toFixed(1)} / ${totalKm.toFixed(1)} ${t('weeklyKm')}</span><span>${kmPct}%</span></div>
+    <button class="synclink" onclick="checkCompleted()">${t('checkCompleted')}</button>
   </div>` : ''}
 
   <div class="weeknav">
@@ -703,6 +710,9 @@ function renderCard(w,idx){
       <span class="dur">${mmss(total)} · ~${Math.round(total/60)} ${t('min')}</span>
     </div>
     <div class="profile">${bar}</div>
+    ${w.actual? `<div class="note" style="margin-bottom:11px">
+      ${t('actualLabel')}: ${w.actual.distanceKm} ${t('kmShort')} · ${mmss(w.actual.paceSecPerKm||0)}/${t('kmShort')}${w.actual.avgHR?' · '+Math.round(w.actual.avgHR)+' HR':''}${scoreWorkout(w)!=null?' · '+t('scoreLabel')+' '+scoreWorkout(w)+'%':''}
+    </div>` : ''}
     <div class="steps">
       <div class="step"><span class="pip" style="background:var(--warm)"></span>
         <span class="lbl">${t('warmup')}</span><span class="val">${mmss(w.warmupSec)}</span></div>
@@ -1034,9 +1044,49 @@ async function sendWeek(){
     const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(buildPayload())});
     const data=await r.json();
     if(data.error){ alert(t('serverErrorAlert')+data.error); return; }
-    S.sheet.result=data.results||[]; render();
+    const results=data.results||[];
+    // buildPayload() and the backend both iterate in this same day/workout order,
+    // so results[i] is the outcome for the i-th workout - use that to link the
+    // real Garmin workoutId back onto the plan entry for later activity matching.
+    const wk=weekDates(S.offset); let i=0;
+    wk.forEach(d=>dayWorkouts(d).forEach(w=>{
+      const res=results[i++];
+      if(res && res.ok && res.workoutId) w.garminWorkoutId=res.workoutId;
+    }));
+    S.sheet.result=results; save(); render();
   }catch(e){
     alert(t('sendFailedAlert')+e.message+t('sendFailedHint'));
+  }
+}
+function scoreWorkout(w){
+  if(!w.actual) return null;
+  const planned=workoutKm(w);
+  if(!planned) return null;
+  const diffPct=Math.abs(w.actual.distanceKm-planned)/planned;
+  return Math.max(0, Math.round(100-diffPct*100));
+}
+async function checkCompleted(){
+  const wk=weekDates(S.offset);
+  const since=ymd(wk[0]), until=ymd(wk[6]);
+  try{
+    const r=await fetch(`${BACKEND_BASE}/activities?since=${since}&until=${until}`);
+    const data=await r.json();
+    if(data.error){ alert(t('serverErrorAlert')+data.error); return; }
+    const acts=data.activities||[];
+    let matched=0;
+    wk.forEach(d=>dayWorkouts(d).forEach(w=>{
+      if(!w.garminWorkoutId) return;
+      const act=acts.find(a=>a.workoutId===w.garminWorkoutId);
+      if(act){
+        w.done=true;
+        w.actual={distanceKm:act.distanceKm, durationSec:act.durationSec, paceSecPerKm:act.paceSecPerKm, avgHR:act.avgHR};
+        matched++;
+      }
+    }));
+    save(); render();
+    alert(matched+' '+t('syncedSuffix'));
+  }catch(e){
+    alert(t('sendFailedAlert')+e.message);
   }
 }
 
