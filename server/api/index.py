@@ -208,3 +208,39 @@ def schedule_week(payload: WeekPayload, x_api_secret: Optional[str] = Header(def
         except Exception as e:
             results.append({"name": w.name, "date": w.date, "ok": False, "error": str(e)})
     return {"results": results}
+
+@app.get("/activities")
+def activities(since: str, until: Optional[str] = None, x_api_secret: Optional[str] = Header(default=None)):
+    """Completed runs in a date range, for matching back against pushed workouts.
+    `workoutId` on the activity (when present) is the same id returned by
+    /schedule-week when the structured workout was uploaded, so the frontend
+    can match a completed run to its plan entry exactly instead of guessing
+    by date/type.
+    """
+    check_secret(x_api_secret)
+    try:
+        client = get_client()
+    except HTTPException:
+        raise
+    except Exception as e:
+        return {"activities": [], "error": f"garmin auth failed: {e}"}
+    try:
+        raw = client.get_activities_by_date(since, until or since, "running")
+    except Exception as e:
+        return {"activities": [], "error": str(e)}
+    out = []
+    for a in raw:
+        dist_m = a.get("distance") or 0
+        dur_s = a.get("duration") or 0
+        speed = a.get("averageSpeed") or 0
+        out.append({
+            "activityId": a.get("activityId"),
+            "workoutId": a.get("workoutId"),
+            "date": (a.get("startTimeLocal") or "")[:10],
+            "name": a.get("activityName"),
+            "distanceKm": round(dist_m / 1000, 2),
+            "durationSec": round(dur_s),
+            "paceSecPerKm": round(1000 / speed) if speed else None,
+            "avgHR": a.get("averageHR"),
+        })
+    return {"activities": out}
