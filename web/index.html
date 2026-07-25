@@ -206,9 +206,12 @@ async function loadCloudData(userId){
   const {data}=await sb.from('user_data').select('plan, profile').eq('user_id',userId).maybeSingle();
   if(data){
     S.plan=data.plan||{};
-    S.profile=Object.assign({name:'',maxHR:'',restHR:'',thrPace:'',races:[]}, data.profile||{});
+    S.profile=Object.assign({name:'',maxHR:'',restHR:'',thrPace:'',races:[],photo:''}, data.profile||{});
     store.set('plan',S.plan); store.set('profile',S.profile);
   } else {
+    const meta=AUTH.session?.user?.user_metadata||{};
+    if(!S.profile.name) S.profile.name=meta.full_name||meta.name||'';
+    if(!S.profile.photo) S.profile.photo=meta.avatar_url||meta.picture||'';
     await sb.from('user_data').upsert({user_id:userId, plan:S.plan, profile:S.profile});
   }
 }
@@ -390,12 +393,15 @@ let S={
   offset:0, sel:new Date().getDay(),
   lang: store.get('lang','he'),
   plan: store.get('plan',{}),
-  profile: store.get('profile',{name:'', maxHR:'', restHR:'', thrPace:'', races:[]}),
+  profile: store.get('profile',{name:'', maxHR:'', restHR:'', thrPace:'', races:[], photo:''}),
   sheet:null, // {mode:'edit'|'send', draft, editIndex}
 };
 function save(){
   store.set('plan',S.plan); store.set('profile',S.profile);
-  if(AUTH.session) sb.from('user_data').upsert({user_id:AUTH.session.user.id, plan:S.plan, profile:S.profile});
+  // supabase-js query builders are lazy "thenables" - the request is only actually
+  // sent once .then()/await runs, so this must not be a bare un-awaited statement.
+  if(AUTH.session) sb.from('user_data').upsert({user_id:AUTH.session.user.id, plan:S.plan, profile:S.profile})
+    .then(({error})=>{ if(error) console.error('cloud save failed', error); });
 }
 function dayWorkouts(date){ return S.plan[ymd(date)]||[]; }
 
