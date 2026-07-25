@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#0E1116" />
 <title>מסלול — מתכנן אימונים</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="מסלול" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Rubik:wght@500;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -123,6 +129,9 @@
   .sheet{width:100%; max-width:520px; min-height:82vh; max-height:92vh; overflow-y:auto; background:var(--ink);
     border-radius:22px 22px 0 0; border-top:1px solid var(--line); padding:8px 18px calc(24px + env(safe-area-inset-bottom));
     animation:up .22s ease; box-sizing:border-box;}
+  @supports (height: 100dvh){
+    .sheet{min-height:82dvh; max-height:92dvh;}
+  }
   @keyframes up{from{transform:translateY(30px); opacity:.4;} to{transform:none; opacity:1;}}
   .grab{width:40px; height:4px; background:var(--line); border-radius:3px; margin:8px auto 12px;}
   .sheet h2{font-family:'Rubik'; font-weight:800; font-size:20px; margin:2px 0 16px;}
