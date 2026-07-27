@@ -40,7 +40,11 @@
   .brand .tick{width:11px; height:11px; border-radius:3px;
     background:linear-gradient(135deg,var(--work),var(--warm)); transform:translateY(-2px);}
   .profbtn{width:40px; height:40px; border-radius:50%; background:var(--panel2);
-    border:1px solid var(--line); display:grid; place-items:center; font-weight:700; font-size:15px;}
+    border:1px solid var(--line); display:grid; place-items:center; font-weight:700; font-size:15px; overflow:hidden;}
+  .profbtn img{width:100%; height:100%; object-fit:cover;}
+  .avatarbig{width:64px; height:64px; border-radius:50%; overflow:hidden; background:var(--panel2);
+    border:1px solid var(--line); display:grid; place-items:center; font-weight:700; font-size:22px; flex:none;}
+  .avatarbig img{width:100%; height:100%; object-fit:cover;}
   .hdrbtns{display:flex; align-items:center; gap:8px;}
   .langbtn{height:40px; padding:0 13px; border-radius:20px; background:var(--panel2);
     border:1px solid var(--line); font-weight:700; font-size:13px;}
@@ -322,6 +326,11 @@ const T={
   actualLabel:{he:'בפועל', en:'Actual'},
   scoreLabel:{he:'ציון', en:'score'},
   sendingWord:{he:'שולח...', en:'Sending...'},
+  uploadPhoto:{he:'העלה תמונה', en:'Upload photo'},
+  importGooglePhoto:{he:'ייבא מגוגל', en:'Import from Google'},
+  removePhoto:{he:'הסר תמונה', en:'Remove photo'},
+  noGooglePhoto:{he:'לא נמצאה תמונת גוגל', en:'No Google photo found'},
+  photoFailedAlert:{he:'טעינת התמונה נכשלה', en:'Failed to load the photo'},
   autoGenerate:{he:'✨ צור שבוע אוטומטית', en:'✨ Auto-generate week'},
   genConfigTitle:{he:'תכנון השבוע', en:'Plan the week'},
   pickDaysLabel:{he:'באילו ימים תרצה להתאמן השבוע?', en:'Which days do you want to train this week?'},
@@ -647,7 +656,7 @@ function render(){
     <div class="brand"><h1 class="disp">Maslul</h1><span class="tick"></span></div>
     <div class="hdrbtns">
       <button class="langbtn" onclick="setLang('${S.lang==='he'?'en':'he'}')">${S.lang==='he'?'EN':'עב'}</button>
-      <button class="profbtn" onclick="openProfile()">${initials.toUpperCase()}</button>
+      <button class="profbtn" onclick="openProfile()">${S.profile.photo?`<img src="${S.profile.photo}">`:initials.toUpperCase()}</button>
     </div>
   </header>
 
@@ -903,9 +912,20 @@ function sendSheet(){
 function profileSheet(){
   const p=S.profile; const rd=S.sheet.raceDraft;
   const races=(p.races||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const googleAvatar=AUTH.session?.user?.user_metadata?.avatar_url||AUTH.session?.user?.user_metadata?.picture||'';
+  const initial=(p.name||'?').trim().charAt(0).toUpperCase()||'?';
   return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
     <div class="grab"></div>
     <h2 class="disp">${t('profileTitle')}</h2>
+    <div style="display:flex; align-items:center; gap:14px; margin-bottom:18px">
+      <div class="avatarbig">${p.photo?`<img src="${p.photo}">`:initial}</div>
+      <div style="display:flex; flex-direction:column; gap:8px; flex:1">
+        <input type="file" accept="image/*" id="photoInput" style="display:none" onchange="onPhotoFile(this)">
+        <button class="ghost" style="margin:0" onclick="document.getElementById('photoInput').click()">${t('uploadPhoto')}</button>
+        ${googleAvatar?`<button class="ghost" style="margin:0" onclick="importGooglePhoto()">${t('importGooglePhoto')}</button>`:''}
+        ${p.photo?`<button class="ghost" style="margin:0; color:#ff7a68" onclick="removePhoto()">${t('removePhoto')}</button>`:''}
+      </div>
+    </div>
     <div class="field"><label>${t('name')}</label><input value="${p.name||''}" oninput="S.profile.name=this.value"></div>
     <div class="row2">
       <div class="field"><label>${t('maxHR')}</label><input class="mono" inputmode="numeric" value="${p.maxHR||''}" oninput="S.profile.maxHR=this.value"></div>
@@ -938,6 +958,39 @@ function pick(i){ S.sel=i; render(); }
 function openProfile(){ S.sheet={mode:'profile', raceDraft:{date:'',name:'',km:''}}; render(); }
 function saveProfile(){ save(); closeSheet(); }
 function closeSheet(){ S.sheet=null; render(); }
+
+function readAndResizeImage(file, maxSize){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        const s=Math.min(img.width,img.height);
+        const canvas=document.createElement('canvas');
+        canvas.width=maxSize; canvas.height=maxSize;
+        canvas.getContext('2d').drawImage(img, (img.width-s)/2, (img.height-s)/2, s, s, 0, 0, maxSize, maxSize);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror=reject;
+      img.src=reader.result;
+    };
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
+}
+async function onPhotoFile(input){
+  const file=input.files && input.files[0]; if(!file) return;
+  try{
+    S.profile.photo=await readAndResizeImage(file, 200);
+    save(); render();
+  }catch(e){ alert(t('photoFailedAlert')); }
+}
+function importGooglePhoto(){
+  const url=AUTH.session?.user?.user_metadata?.avatar_url||AUTH.session?.user?.user_metadata?.picture;
+  if(!url){ alert(t('noGooglePhoto')); return; }
+  S.profile.photo=url; save(); render();
+}
+function removePhoto(){ S.profile.photo=''; save(); render(); }
 
 function raceDraftField(k,v){ S.sheet.raceDraft[k]=v; }
 function syncRaceWorkout(race){
