@@ -313,7 +313,8 @@ const T={
   sendTitle:{he:'שליחה לגרמין', en:'Send to Garmin'},
   sendNote:{he:'האימונים ייווצרו ב-Garmin Connect ויתוזמנו לתאריכים. סנכרן את השעון כדי להוריד אותם. ההתחברות לגרמין נעשית בשרת דרך טוקן קבוע, ללא סיסמה בבקשה.',
     en:'Workouts are created in Garmin Connect and scheduled on their dates. Sync your watch to download them. The server connects to Garmin using a stored token — no password is sent.'},
-  workoutsThisWeek:{he:'אימונים בשבוע זה', en:'workouts this week'},
+  workoutsToSend:{he:'אימונים לשליחה', en:'workouts to send'},
+  sendThisDay:{he:'שלח יום זה לגרמין', en:'Send this day to Garmin'},
   scheduled:{he:'תוזמן', en:'Scheduled'},
   errorWord:{he:'שגיאה', en:'Error'},
   sendAgain:{he:'שלח שוב', en:'Send again'},
@@ -715,6 +716,7 @@ function render(){
   const yr=wk[6].getFullYear();
   const initials=(S.profile.name||'?').trim().charAt(0)||'?';
   const weekHasWorkouts = wk.some(d=>dayWorkouts(d).length);
+  const dayHasWorkouts = dayWorkouts(selDate).length>0;
   const prevArrow=S.lang==='he'?'›':'‹', nextArrow=S.lang==='he'?'‹':'›';
   const weekWorkouts=wk.flatMap(d=>dayWorkouts(d));
   const totalKm=weekWorkouts.reduce((a,w)=>a+workoutKm(w),0);
@@ -771,10 +773,11 @@ function render(){
     </div>
     ${renderDay(selDate)}
     <button class="addbtn" onclick="openEditor()"><span class="p">+</span> ${t('addWorkout')}</button>
+    ${dayHasWorkouts?`<button class="synclink" style="text-align:center; width:100%" onclick="openSendDay()">${t('sendThisDay')}</button>`:''}
   </div>
 
   <div class="sendbar">
-    <button class="send" ${weekHasWorkouts?'':'disabled'} onclick="openSend()">
+    <button class="send" ${weekHasWorkouts?'':'disabled'} onclick="openSendWeek()">
       ${t('sendWeek')}
     </button>
   </div>
@@ -991,14 +994,14 @@ function segEditor(seg,i,which){
 
 /* send sheet */
 function sendSheet(){
-  const wk=weekDates(S.offset);
-  const items=[]; wk.forEach(d=>dayWorkouts(d).forEach(w=>items.push({date:ymd(d),w})));
+  const dates=S.sheet.dates||weekDates(S.offset);
+  const items=[]; dates.forEach(d=>dayWorkouts(d).forEach(w=>items.push({date:ymd(d),w})));
   const res=S.sheet.result;
   return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
     <div class="grab"></div>
     <h2 class="disp">${t('sendTitle')}</h2>
     <div class="note">${t('sendNote')}</div>
-    <div style="margin:14px 0 4px" class="minilbl">${items.length} ${t('workoutsThisWeek')}</div>
+    <div style="margin:14px 0 4px" class="minilbl">${items.length} ${t('workoutsToSend')}</div>
     <div style="margin-bottom:14px">${items.map(it=>`<div class="step" style="padding:6px 0">
       <span class="pip" style="background:var(${TYPES[it.w.type].color})"></span>
       <span class="lbl">${it.w.name}</span>
@@ -1192,9 +1195,12 @@ function toggleDone(idx){
 }
 
 /* ---- Garmin payload + send ---- */
+/* S.sheet.dates drives scope for the whole send flow - a week's worth of dates
+   or just the one day selected via openSendDay() - buildPayload/sendWeek/sendSheet
+   all read from it instead of assuming "the whole visible week". */
 function buildPayload(){
-  const wk=weekDates(S.offset); const workouts=[];
-  wk.forEach(d=>dayWorkouts(d).forEach(w=>{
+  const dates=S.sheet.dates||weekDates(S.offset); const workouts=[];
+  dates.forEach(d=>dayWorkouts(d).forEach(w=>{
     workouts.push({ date:ymd(d), name:w.name, type:w.type, sport:'running',
       warmupSec:w.warmupSec, cooldownSec:w.cooldownSec, garminWorkoutId:w.garminWorkoutId||null,
       blocks:w.blocks.map(b=> b.kind==='steady'
@@ -1205,7 +1211,8 @@ function buildPayload(){
   }));
   return { athlete:{ name:S.profile.name, maxHR:S.profile.maxHR, restHR:S.profile.restHR }, workouts };
 }
-function openSend(){ S.sheet={mode:'send', payload:null, result:null}; render(); }
+function openSendWeek(){ S.sheet={mode:'send', payload:null, result:null, dates:weekDates(S.offset)}; render(); }
+function openSendDay(){ S.sheet={mode:'send', payload:null, result:null, dates:[weekDates(S.offset)[S.sel]]}; render(); }
 function showPayload(){ S.sheet.payload=JSON.stringify(buildPayload(),null,2); render(); }
 async function sendWeek(){
   const url=BACKEND_URL;
@@ -1221,8 +1228,8 @@ async function sendWeek(){
     // so results[i] is the outcome for the i-th workout - use that to link the
     // real Garmin workoutId back onto the plan entry for later activity matching,
     // and so the *next* send replaces this workout on Garmin instead of duplicating it.
-    const wk=weekDates(S.offset); let i=0;
-    wk.forEach(d=>dayWorkouts(d).forEach(w=>{
+    const dates=S.sheet.dates||weekDates(S.offset); let i=0;
+    dates.forEach(d=>dayWorkouts(d).forEach(w=>{
       const res=results[i++];
       if(res && res.ok && res.workoutId) w.garminWorkoutId=res.workoutId;
     }));
