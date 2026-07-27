@@ -112,6 +112,21 @@
   .kmbar .lbl{display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-top:6px;}
   .synclink{display:block; margin-top:8px; font-size:12px; color:var(--easy); font-weight:700; text-decoration:underline;}
 
+  /* ---- stats sheet ---- */
+  .statrow{display:flex; gap:8px;}
+  .statbox{flex:1; background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:12px 8px; text-align:center;}
+  .statval{font-weight:700; font-size:17px;}
+  .statunit{font-size:12px; color:var(--muted); font-weight:600;}
+  .statlbl{font-size:11px; color:var(--muted); margin-top:4px;}
+  .statsbars{display:flex; align-items:flex-end; gap:5px; height:120px;}
+  .statsbars .col{flex:1; display:flex; flex-direction:column; justify-content:flex-end;
+    align-items:center; height:100%;}
+  .statsbars .track{width:100%; height:100%; display:flex; align-items:flex-end;
+    background:var(--panel); border-radius:4px; overflow:hidden; align-self:flex-end;}
+  .statsbars .fill{width:100%; background:linear-gradient(180deg,var(--warm),var(--work));}
+  .statsbars .wk{font-size:8px; color:var(--muted2); margin-top:5px; writing-mode:horizontal-tb;}
+
   .addbtn{width:100%; padding:14px; border-radius:15px; background:var(--panel);
     border:1px solid var(--line); font-family:'Rubik'; font-weight:700; font-size:15px;
     color:var(--txt); display:flex; align-items:center; justify-content:center; gap:8px;}
@@ -250,7 +265,10 @@ async function signInGoogle(){
 async function signOut(){ await sb.auth.signOut(); }
 sb.auth.onAuthStateChange(async (event,session)=>{
   AUTH.session=session; AUTH.ready=true;
-  if(session && (event==='SIGNED_IN' || event==='INITIAL_SESSION')) await loadCloudData(session.user.id);
+  if(session && (event==='SIGNED_IN' || event==='INITIAL_SESSION')){
+    await loadCloudData(session.user.id);
+    autoCheckCompleted(); // fire-and-forget background sync, doesn't block the render
+  }
   render();
 });
 
@@ -331,6 +349,14 @@ const T={
   removePhoto:{he:'הסר תמונה', en:'Remove photo'},
   noGooglePhoto:{he:'לא נמצאה תמונת גוגל', en:'No Google photo found'},
   photoFailedAlert:{he:'טעינת התמונה נכשלה', en:'Failed to load the photo'},
+  duplicateWeek:{he:'📋 שכפל שבוע זה לשבוע הבא', en:'📋 Duplicate this week to next week'},
+  duplicatedSuffix:{he:'אימונים שוכפלו לשבוע הבא', en:'workouts duplicated to next week'},
+  statsTitle:{he:'סטטיסטיקות', en:'Statistics'},
+  monthKm:{he:'ק״מ החודש (בוצע/מתוכנן)', en:'km this month (done/planned)'},
+  monthWorkouts:{he:'אימונים שבוצעו', en:'workouts completed'},
+  monthAvgPace:{he:'קצב ממוצע', en:'avg pace'},
+  weeklyTrend:{he:'מגמה שבועית (12 שבועות אחרונים)', en:'Weekly trend (last 12 weeks)'},
+  statsLegend:{he:'גובה העמודה = נפח מתוכנן, החלק המלא = מה שבוצע בפועל.', en:'Bar height = planned volume, the filled part = what was actually completed.'},
   autoGenerate:{he:'✨ צור שבוע אוטומטית', en:'✨ Auto-generate week'},
   genConfigTitle:{he:'תכנון השבוע', en:'Plan the week'},
   pickDaysLabel:{he:'באילו ימים תרצה להתאמן השבוע?', en:'Which days do you want to train this week?'},
@@ -451,6 +477,42 @@ function workoutKm(w){
   });
   if(w.cooldownSec) meters+=w.cooldownSec/PACE.easy;
   return meters/1000;
+}
+
+/* ============ stats ============ */
+function weekStats(offset){
+  const wk=weekDates(offset);
+  const ws=wk.flatMap(d=>dayWorkouts(d));
+  const planned=ws.reduce((a,w)=>a+workoutKm(w),0);
+  const done=ws.reduce((a,w)=>a+(w.done?workoutKm(w):0),0);
+  return {offset, planned, done, weekStart:wk[0]};
+}
+function monthStats(){
+  const now=new Date(); const y=now.getFullYear(), m=now.getMonth();
+  let planned=0, done=0, doneCount=0;
+  Object.keys(S.plan).forEach(ds=>{
+    const d=new Date(ds+'T00:00:00');
+    if(d.getFullYear()!==y || d.getMonth()!==m) return;
+    S.plan[ds].forEach(w=>{
+      const km=workoutKm(w); planned+=km;
+      if(w.done){ done+=km; doneCount++; }
+    });
+  });
+  return {planned, done, doneCount};
+}
+function avgPaceThisMonth(){
+  const now=new Date(); const y=now.getFullYear(), m=now.getMonth();
+  let totalSec=0, totalKm=0;
+  Object.keys(S.plan).forEach(ds=>{
+    const d=new Date(ds+'T00:00:00');
+    if(d.getFullYear()!==y || d.getMonth()!==m) return;
+    S.plan[ds].forEach(w=>{
+      if(w.done && w.actual && w.actual.paceSecPerKm && w.actual.distanceKm){
+        totalSec+=w.actual.paceSecPerKm*w.actual.distanceKm; totalKm+=w.actual.distanceKm;
+      }
+    });
+  });
+  return totalKm? Math.round(totalSec/totalKm) : null;
 }
 /* estimate seconds for any step (for bar widths + total duration) */
 function stepSecs(mode,value,kind){ return mode==='time'? value : Math.round(value*PACE[kind]); }
@@ -655,6 +717,7 @@ function render(){
   <header>
     <div class="brand"><h1 class="disp">Maslul</h1><span class="tick"></span></div>
     <div class="hdrbtns">
+      <button class="langbtn" onclick="openStats()">📊</button>
       <button class="langbtn" onclick="setLang('${S.lang==='he'?'en':'he'}')">${S.lang==='he'?'EN':'עב'}</button>
       <button class="profbtn" onclick="openProfile()">${S.profile.photo?`<img src="${S.profile.photo}">`:initials.toUpperCase()}</button>
     </div>
@@ -691,6 +754,7 @@ function render(){
 
   <div style="padding:0 18px 4px">
     <button class="addbtn" onclick="openGenerate()"><span class="p">✨</span> ${t('autoGenerate')}</button>
+    <button class="synclink" style="text-align:center; width:100%" onclick="duplicateWeek()">${t('duplicateWeek')}</button>
   </div>
 
   <div class="detail">
@@ -773,7 +837,42 @@ function renderSheet(){
   if(S.sheet.mode==='send') return sendSheet();
   if(S.sheet.mode==='profile') return profileSheet();
   if(S.sheet.mode==='generate') return S.sheet.step==='preview'? generatePreviewSheet() : generateConfigSheet();
+  if(S.sheet.mode==='stats') return statsSheet();
   return `<div class="scrim"></div>`;
+}
+function openStats(){ S.sheet={mode:'stats'}; render(); }
+function statsSheet(){
+  const weeks=[]; for(let i=-11;i<=0;i++) weeks.push(weekStats(i));
+  const maxKm=Math.max(1, ...weeks.map(w=>w.planned));
+  const mo=monthStats();
+  const pace=avgPaceThisMonth();
+  const M=MONTHS_I18N[S.lang];
+  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
+    <div class="grab"></div>
+    <h2 class="disp">${t('statsTitle')}</h2>
+
+    <div class="statrow">
+      <div class="statbox"><div class="statval mono">${mo.done.toFixed(1)}<span class="statunit">/${mo.planned.toFixed(1)}</span></div><div class="statlbl">${t('monthKm')}</div></div>
+      <div class="statbox"><div class="statval mono">${mo.doneCount}</div><div class="statlbl">${t('monthWorkouts')}</div></div>
+      <div class="statbox"><div class="statval mono">${pace!=null?mmss(pace):'—'}</div><div class="statlbl">${t('monthAvgPace')}</div></div>
+    </div>
+
+    <div class="minilbl" style="margin:18px 0 8px">${t('weeklyTrend')}</div>
+    <div class="statsbars">
+      ${weeks.map(w=>{
+        const trackH=Math.max(3, Math.round(w.planned/maxKm*100));
+        const fillH=w.planned>0? Math.round(Math.min(1,w.done/w.planned)*100) : 0;
+        const d=w.weekStart;
+        return `<div class="col" title="${w.done.toFixed(1)}/${w.planned.toFixed(1)} ${t('kmShort')}">
+          <div class="track" style="height:${trackH}%"><div class="fill" style="height:${fillH}%"></div></div>
+          <div class="wk">${d.getDate()}/${d.getMonth()+1}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="note" style="margin-top:10px">${t('statsLegend')}</div>
+
+    <button class="ghost" onclick="closeSheet()" style="margin-top:16px">${t('close')}</button>
+  </div></div>`;
 }
 
 /* generate sheet */
@@ -1018,6 +1117,25 @@ function delRace(id){
   save(); render();
 }
 
+function duplicateWeek(){
+  const src=weekDates(S.offset), dst=weekDates(S.offset+1);
+  let copied=0;
+  src.forEach((d,i)=>{
+    dayWorkouts(d).forEach(w=>{
+      if(w.raceId) return; // race-day entries are tied to a specific race, not repeatable
+      const nd=dst[i], key=ymd(nd);
+      const copy=JSON.parse(JSON.stringify(w));
+      copy.id=uid(); copy.done=false;
+      delete copy.garminWorkoutId; delete copy.actual;
+      copy.name=autoName(copy.type, nd);
+      if(!S.plan[key]) S.plan[key]=[];
+      S.plan[key].push(copy);
+      copied++;
+    });
+  });
+  save(); render();
+  alert(copied+' '+t('duplicatedSuffix'));
+}
 function openGenerate(){
   const prevWk=weekDates(S.offset-1);
   let days=prevWk.map((d,i)=>dayWorkouts(d).length?i:null).filter(i=>i!=null);
@@ -1127,23 +1245,33 @@ async function sendWeek(){
     S.sheet.sending=false; render();
   }
 }
+/* distance match (60%) + pace match vs the workout's own implied pace (40%);
+   falls back to distance-only if there's no actual pace to compare (rare) */
 function scoreWorkout(w){
   if(!w.actual) return null;
   const planned=workoutKm(w);
   if(!planned) return null;
-  const diffPct=Math.abs(w.actual.distanceKm-planned)/planned;
-  return Math.max(0, Math.round(100-diffPct*100));
+  const distScore=Math.max(0, 100-Math.abs(w.actual.distanceKm-planned)/planned*100);
+  const plannedSecs=totalSecs(w);
+  const plannedPace=plannedSecs && planned? plannedSecs/planned : null;
+  let paceScore=null;
+  if(plannedPace && w.actual.paceSecPerKm){
+    paceScore=Math.max(0, 100-Math.abs(w.actual.paceSecPerKm-plannedPace)/plannedPace*100);
+  }
+  return Math.round(paceScore!=null? distScore*0.6+paceScore*0.4 : distScore);
 }
-async function checkCompleted(){
-  const wk=weekDates(S.offset);
-  const since=ymd(wk[0]), until=ymd(wk[6]);
-  try{
-    const r=await fetch(`${BACKEND_BASE}/activities?since=${since}&until=${until}`);
-    const data=await r.json();
-    if(data.error){ alert(t('serverErrorAlert')+data.error); return; }
-    const acts=data.activities||[];
-    let matched=0;
-    wk.forEach(d=>dayWorkouts(d).forEach(w=>{
+/* matches completed Garmin activities to plan entries (by garminWorkoutId) for any
+   date in [since,until] present in S.plan - not tied to the currently viewed week,
+   so it can run both for the manual "check" button and a silent background sync. */
+async function fetchAndApplyActivities(since,until){
+  const r=await fetch(`${BACKEND_BASE}/activities?since=${since}&until=${until}`);
+  const data=await r.json();
+  if(data.error) return {matched:0, error:data.error};
+  const acts=data.activities||[];
+  let matched=0;
+  Object.keys(S.plan).forEach(dateStr=>{
+    if(dateStr<since || dateStr>until) return;
+    S.plan[dateStr].forEach(w=>{
       if(!w.garminWorkoutId) return;
       const act=acts.find(a=>a.workoutId===w.garminWorkoutId);
       if(act){
@@ -1151,12 +1279,30 @@ async function checkCompleted(){
         w.actual={distanceKm:act.distanceKm, durationSec:act.durationSec, paceSecPerKm:act.paceSecPerKm, avgHR:act.avgHR};
         matched++;
       }
-    }));
+    });
+  });
+  return {matched};
+}
+async function checkCompleted(){
+  const wk=weekDates(S.offset);
+  try{
+    const {matched,error}=await fetchAndApplyActivities(ymd(wk[0]), ymd(wk[6]));
+    if(error){ alert(t('serverErrorAlert')+error); return; }
     save(); render();
     alert(matched+' '+t('syncedSuffix'));
   }catch(e){
     alert(t('sendFailedAlert')+e.message);
   }
+}
+/* silent background sync on load - covers this week + last week so anything
+   completed near a week boundary still gets picked up without user action */
+async function autoCheckCompleted(){
+  try{
+    const until=ymd(new Date());
+    const sinceD=new Date(); sinceD.setDate(sinceD.getDate()-13);
+    const {matched}=await fetchAndApplyActivities(ymd(sinceD), until);
+    if(matched){ save(); render(); }
+  }catch(e){ /* best-effort - the manual button still works if this fails */ }
 }
 
 /* ---- swipe between weeks ---- */
