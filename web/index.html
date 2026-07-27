@@ -175,7 +175,12 @@
     border:1px solid var(--line); font-weight:700; font-size:12px; color:var(--muted);}
   .gendays button.on{border-color:var(--work); background:linear-gradient(180deg,#241a19,var(--panel)); color:var(--txt);}
   .primary{width:100%; padding:15px; border-radius:14px; font-family:'Rubik'; font-weight:800; font-size:16px;
-    background:linear-gradient(135deg,var(--work),#ff7b45); color:#1a0d09; margin-top:6px;}
+    background:linear-gradient(135deg,var(--work),#ff7b45); color:#1a0d09; margin-top:6px;
+    display:flex; align-items:center; justify-content:center; gap:8px;}
+  .primary:disabled{opacity:.7;}
+  .spinner{width:15px; height:15px; border:2px solid rgba(26,13,9,.35); border-top-color:#1a0d09;
+    border-radius:50%; animation:spin .7s linear infinite; flex:none;}
+  @keyframes spin{to{transform:rotate(360deg);}}
   .ghost{width:100%; padding:14px; border-radius:14px; font-weight:700; font-size:15px;
     background:var(--panel); border:1px solid var(--line); color:var(--muted); margin-top:9px;}
 
@@ -316,6 +321,7 @@ const T={
   syncedSuffix:{he:'אימונים סונכרנו מגרמין', en:'workouts synced from Garmin'},
   actualLabel:{he:'בפועל', en:'Actual'},
   scoreLabel:{he:'ציון', en:'score'},
+  sendingWord:{he:'שולח...', en:'Sending...'},
   autoGenerate:{he:'✨ צור שבוע אוטומטית', en:'✨ Auto-generate week'},
   genConfigTitle:{he:'תכנון השבוע', en:'Plan the week'},
   pickDaysLabel:{he:'באילו ימים תרצה להתאמן השבוע?', en:'Which days do you want to train this week?'},
@@ -886,7 +892,7 @@ function sendSheet(){
     ${res? `<div style="margin-bottom:10px">${res.map(r=>`<div class="res ${r.ok?'ok':'err'}">
         <span>${r.name} · ${r.date.slice(5)}</span><span class="mono">${r.ok?t('scheduled'):t('errorWord')}</span></div>`).join('')}</div>`:''}
 
-    <button class="primary disp" onclick="sendWeek()">${res?t('sendAgain'):t('sendToGarmin')}</button>
+    <button class="primary disp" ${S.sheet.sending?'disabled':''} onclick="sendWeek()">${S.sheet.sending?`<span class="spinner"></span>${t('sendingWord')}`:(res?t('sendAgain'):t('sendToGarmin'))}</button>
     <button class="ghost" onclick="showPayload()">${t('showPayload')}</button>
     ${S.sheet.payload? `<div class="payload" style="margin-top:12px">${S.sheet.payload}</div>`:''}
     <button class="ghost" onclick="closeSheet()">${t('close')}</button>
@@ -1031,7 +1037,7 @@ function buildPayload(){
   const wk=weekDates(S.offset); const workouts=[];
   wk.forEach(d=>dayWorkouts(d).forEach(w=>{
     workouts.push({ date:ymd(d), name:w.name, type:w.type, sport:'running',
-      warmupSec:w.warmupSec, cooldownSec:w.cooldownSec,
+      warmupSec:w.warmupSec, cooldownSec:w.cooldownSec, garminWorkoutId:w.garminWorkoutId||null,
       blocks:w.blocks.map(b=> b.kind==='steady'
         ? {kind:'steady', mode:b.mode, value:b.value, pace:b.pace||null}
         : {kind:'repeat', reps:b.reps,
@@ -1045,6 +1051,7 @@ function showPayload(){ S.sheet.payload=JSON.stringify(buildPayload(),null,2); r
 async function sendWeek(){
   const url=BACKEND_URL;
   save();
+  S.sheet.sending=true; render();
   const headers={'Content-Type':'application/json'};
   try{
     const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(buildPayload())});
@@ -1053,15 +1060,18 @@ async function sendWeek(){
     const results=data.results||[];
     // buildPayload() and the backend both iterate in this same day/workout order,
     // so results[i] is the outcome for the i-th workout - use that to link the
-    // real Garmin workoutId back onto the plan entry for later activity matching.
+    // real Garmin workoutId back onto the plan entry for later activity matching,
+    // and so the *next* send replaces this workout on Garmin instead of duplicating it.
     const wk=weekDates(S.offset); let i=0;
     wk.forEach(d=>dayWorkouts(d).forEach(w=>{
       const res=results[i++];
       if(res && res.ok && res.workoutId) w.garminWorkoutId=res.workoutId;
     }));
-    S.sheet.result=results; save(); render();
+    S.sheet.result=results; save();
   }catch(e){
     alert(t('sendFailedAlert')+e.message+t('sendFailedHint'));
+  }finally{
+    S.sheet.sending=false; render();
   }
 }
 function scoreWorkout(w){

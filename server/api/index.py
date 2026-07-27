@@ -60,6 +60,7 @@ class Workout(BaseModel):
     warmupSec: int = 0
     cooldownSec: int = 0
     blocks: List[Block] = []
+    garminWorkoutId: Optional[int] = None   # id from a previous send, so it can be replaced instead of duplicated
 
 class WeekPayload(BaseModel):
     athlete: Optional[dict] = None
@@ -200,6 +201,13 @@ def schedule_week(payload: WeekPayload, x_api_secret: Optional[str] = Header(def
     results = []
     for w in payload.workouts:
         try:
+            if w.garminWorkoutId:
+                # replace, don't duplicate: remove the previously-sent workout (which also
+                # drops its scheduled entry) before uploading the current version.
+                try:
+                    client.delete_workout(w.garminWorkoutId)
+                except Exception:
+                    pass  # already gone / never existed - fine, proceed to create fresh
             wk = build_workout(w)
             res = client.upload_running_workout(wk)
             wid = res.get("workoutId") if isinstance(res, dict) else res
