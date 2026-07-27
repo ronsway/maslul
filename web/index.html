@@ -160,7 +160,8 @@
   .blk .bh{display:flex; align-items:center; justify-content:space-between; margin-bottom:11px;}
   .blk .bt{font-family:'Rubik'; font-weight:700; font-size:14px;}
   .blk .rm{color:#ff7a68; font-size:13px; font-weight:700;}
-  .seg2{display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:9px;}
+  .seg2{display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:9px; min-width:0;}
+  .seg2 input{width:100%; min-width:0; box-sizing:border-box;}
   .toggle{display:flex; background:var(--panel2); border:1px solid var(--line); border-radius:10px; overflow:hidden;}
   .toggle button{flex:1; padding:8px 0; font-size:12px; font-weight:700; color:var(--muted);}
   .toggle button.on{background:var(--work); color:#1a0d09;}
