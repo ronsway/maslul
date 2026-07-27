@@ -1,6 +1,6 @@
 {
-  "name": "מסלול",
-  "short_name": "מסלול",
+  "name": "Maslul",
+  "short_name": "Maslul",
   "description": "מתכנן אימוני ריצה עם שליחה לגרמין",
   "start_url": "/",
   "scope": "/",
