@@ -349,8 +349,6 @@ const T={
   removePhoto:{he:'הסר תמונה', en:'Remove photo'},
   noGooglePhoto:{he:'לא נמצאה תמונת גוגל', en:'No Google photo found'},
   photoFailedAlert:{he:'טעינת התמונה נכשלה', en:'Failed to load the photo'},
-  duplicateWeek:{he:'📋 שכפל שבוע זה לשבוע הבא', en:'📋 Duplicate this week to next week'},
-  duplicatedSuffix:{he:'אימונים שוכפלו לשבוע הבא', en:'workouts duplicated to next week'},
   statsTitle:{he:'סטטיסטיקות', en:'Statistics'},
   monthKm:{he:'ק״מ החודש (בוצע/מתוכנן)', en:'km this month (done/planned)'},
   monthWorkouts:{he:'אימונים שבוצעו', en:'workouts completed'},
@@ -764,7 +762,6 @@ function render(){
 
   <div style="padding:0 18px 4px">
     <button class="addbtn" onclick="openGenerate()"><span class="p">✨</span> ${t('autoGenerate')}</button>
-    <button class="synclink" style="text-align:center; width:100%" onclick="duplicateWeek()">${t('duplicateWeek')}</button>
   </div>
 
   <div class="detail">
@@ -1127,25 +1124,6 @@ function delRace(id){
   save(); render();
 }
 
-function duplicateWeek(){
-  const src=weekDates(S.offset), dst=weekDates(S.offset+1);
-  let copied=0;
-  src.forEach((d,i)=>{
-    dayWorkouts(d).forEach(w=>{
-      if(w.raceId) return; // race-day entries are tied to a specific race, not repeatable
-      const nd=dst[i], key=ymd(nd);
-      const copy=JSON.parse(JSON.stringify(w));
-      copy.id=uid(); copy.done=false;
-      delete copy.garminWorkoutId; delete copy.actual;
-      copy.name=autoName(copy.type, nd);
-      if(!S.plan[key]) S.plan[key]=[];
-      S.plan[key].push(copy);
-      copied++;
-    });
-  });
-  save(); render();
-  alert(copied+' '+t('duplicatedSuffix'));
-}
 function openGenerate(){
   const prevWk=weekDates(S.offset-1);
   let days=prevWk.map((d,i)=>dayWorkouts(d).length?i:null).filter(i=>i!=null);
@@ -1328,6 +1306,11 @@ function attachSwipe(){
 }
 
 render();
+</script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+}
 </script>
 </body>
 </html>
