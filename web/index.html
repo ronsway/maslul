@@ -371,7 +371,7 @@ function typeDesc(k){ return S.lang==='he'? TYPES[k].desc : TYPES[k].descEn; }
 const PACE={work:0.27, recovery:0.39, easy:0.36};
 
 const WEEKDAY_EN=['SUN','MON','TUE','WED','THU','FRI','SAT'];
-function autoName(type,date){ return pad(date.getDate())+'_'+pad(date.getMonth()+1)+'_'+WEEKDAY_EN[date.getDay()]+'_'+TYPES[type].en; }
+function autoName(type,date){ return WEEKDAY_EN[date.getDay()]+'_'+pad(date.getDate())+'_'+pad(date.getMonth()+1)+'_'+TYPES[type].en; }
 
 function defaultWorkout(type,date){
   const base={id:uid(), type, name:autoName(type,date), warmupSec:600, cooldownSec:600, blocks:[], done:false};
@@ -617,6 +617,10 @@ function loadingScreen(){ return `<div class="gate"><div class="brand"><h1 class
 function render(){
   document.documentElement.lang=S.lang;
   document.documentElement.dir=S.lang==='he'?'rtl':'ltr';
+  // innerHTML replacement below destroys and recreates the sheet element, which
+  // resets its scroll position to 0 - save/restore it so clicking a toggle deep in
+  // a long editor sheet doesn't snap the view back to the top.
+  const prevScroll=document.querySelector('.sheet')?.scrollTop;
   if(!AUTH.ready){ app.innerHTML=loadingScreen(); return; }
   if(!AUTH.session){ app.innerHTML=loginScreen(); return; }
   const wk=weekDates(S.offset);
@@ -691,6 +695,7 @@ function render(){
   ${renderSheet()}`;
 
   attachSwipe();
+  if(prevScroll){ const s=document.querySelector('.sheet'); if(s) s.scrollTop=prevScroll; }
 }
 
 function renderDay(date){
