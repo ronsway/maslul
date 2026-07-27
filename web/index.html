@@ -569,9 +569,19 @@ function dayWorkouts(date){ return S.plan[ymd(date)]||[]; }
 
 /* ============ auto-generate weekly plan ============ */
 /* trainingWeekNumber: how many consecutive populated weeks precede this one (resets after a gap) */
+/* how many consecutive weeks of REAL training precede this one - not just planned,
+   a week only counts if at least 70% of its planned km actually got done (via the
+   Garmin sync). An empty week or a mostly-skipped week breaks the streak, so the
+   next proposal doesn't keep escalating load on top of training that didn't happen. */
+const PROGRESSION_COMPLETION_THRESHOLD=0.7;
 function trainingWeekNumber(offset){
   let n=1, k=offset-1, guard=0;
-  while(weekDates(k).some(d=>dayWorkouts(d).length) && guard<52){ n++; k--; guard++; }
+  while(guard<52){
+    const stats=weekStats(k);
+    if(stats.planned<=0) break;
+    if(stats.done/stats.planned < PROGRESSION_COMPLETION_THRESHOLD) break;
+    n++; k--; guard++;
+  }
   return n;
 }
 function nextRace(offset){
