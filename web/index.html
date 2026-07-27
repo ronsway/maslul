@@ -211,6 +211,17 @@
   .res.ok{background:#12251f; border:1px solid #1e3a30; color:#8fe6cf;}
   .res.err{background:#2a1512; border:1px solid #3a201c; color:#ff9d8c;}
 
+  /* ---- toast notifications ---- */
+  .toastwrap{position:fixed; top:0; left:0; right:0; display:flex; flex-direction:column; align-items:center;
+    gap:8px; padding:calc(14px + env(safe-area-inset-top)) 14px 0; z-index:200; pointer-events:none;}
+  .toast{max-width:480px; width:100%; background:var(--panel); border:1px solid var(--line);
+    border-inline-start:4px solid var(--easy); border-radius:14px; padding:13px 16px; box-shadow:var(--shadow);
+    font-size:14px; line-height:1.5; color:var(--txt); pointer-events:auto; animation:toastin .25s ease;}
+  .toast.err{border-inline-start-color:var(--work);}
+  .toast.ok{border-inline-start-color:var(--rec);}
+  @keyframes toastin{from{transform:translateY(-14px); opacity:0;} to{transform:none; opacity:1;}}
+  @keyframes toastout{to{transform:translateY(-14px); opacity:0;}}
+
   /* ---- auth gate ---- */
   .gate{min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
     padding:24px; text-align:center; gap:22px;}
@@ -689,6 +700,24 @@ function genContextNote(offset){
 
 /* ============ render ============ */
 const app=document.getElementById('app');
+/* toasts live outside #app (appended to body directly) so render()'s innerHTML
+   replacement never wipes them mid-display, unlike everything else in the UI. */
+function toast(msg,kind){
+  let wrap=document.getElementById('toastwrap');
+  if(!wrap){ wrap=document.createElement('div'); wrap.id='toastwrap'; wrap.className='toastwrap'; document.body.appendChild(wrap); }
+  const el=document.createElement('div');
+  el.className='toast'+(kind==='err'?' err':kind==='ok'?' ok':'');
+  el.textContent=msg;
+  el.onclick=()=>dismissToast(el);
+  wrap.appendChild(el);
+  el.__timer=setTimeout(()=>dismissToast(el), 3800);
+}
+function dismissToast(el){
+  if(!el || !el.parentNode) return;
+  clearTimeout(el.__timer);
+  el.style.animation='toastout .2s ease forwards';
+  setTimeout(()=>el.remove(), 200);
+}
 function loginScreen(){
   return `<div class="gate">
     <div class="brand"><h1 class="disp">Maslul</h1></div>
@@ -1092,11 +1121,11 @@ async function onPhotoFile(input){
   try{
     S.profile.photo=await readAndResizeImage(file, 200);
     save(); render();
-  }catch(e){ alert(t('photoFailedAlert')); }
+  }catch(e){ toast(t('photoFailedAlert'),'err'); }
 }
 function importGooglePhoto(){
   const url=AUTH.session?.user?.user_metadata?.avatar_url||AUTH.session?.user?.user_metadata?.picture;
-  if(!url){ alert(t('noGooglePhoto')); return; }
+  if(!url){ toast(t('noGooglePhoto')); return; }
   S.profile.photo=url; save(); render();
 }
 function removePhoto(){ S.profile.photo=''; save(); render(); }
@@ -1109,7 +1138,7 @@ function syncRaceWorkout(race){
 }
 function addRace(){
   const d=S.sheet.raceDraft;
-  if(!d.date || !d.name){ alert(t('raceNeedsFields')); return; }
+  if(!d.date || !d.name){ toast(t('raceNeedsFields')); return; }
   S.profile.races=(S.profile.races||[]);
   const race={id:uid(), date:d.date, name:d.name, km:parseFloat(d.km)||0};
   S.profile.races.push(race);
@@ -1140,7 +1169,7 @@ function toggleGenDay(i){
   render();
 }
 function proposeWeek(){
-  if(!S.sheet.days.length){ alert(t('pickAtLeastOneDay')); return; }
+  if(!S.sheet.days.length){ toast(t('pickAtLeastOneDay')); return; }
   S.sheet.proposal=generateWeekPlan(S.offset, S.sheet.days);
   S.sheet.step='preview'; render();
 }
@@ -1222,7 +1251,7 @@ async function sendWeek(){
   try{
     const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(buildPayload())});
     const data=await r.json();
-    if(data.error){ alert(t('serverErrorAlert')+data.error); return; }
+    if(data.error){ toast(t('serverErrorAlert')+data.error,'err'); return; }
     const results=data.results||[];
     // buildPayload() and the backend both iterate in this same day/workout order,
     // so results[i] is the outcome for the i-th workout - use that to link the
@@ -1235,7 +1264,7 @@ async function sendWeek(){
     }));
     S.sheet.result=results; save();
   }catch(e){
-    alert(t('sendFailedAlert')+e.message+t('sendFailedHint'));
+    toast(t('sendFailedAlert')+e.message+t('sendFailedHint'),'err');
   }finally{
     S.sheet.sending=false; render();
   }
@@ -1282,11 +1311,11 @@ async function checkCompleted(){
   const wk=weekDates(S.offset);
   try{
     const {matched,error}=await fetchAndApplyActivities(ymd(wk[0]), ymd(wk[6]));
-    if(error){ alert(t('serverErrorAlert')+error); return; }
+    if(error){ toast(t('serverErrorAlert')+error,'err'); return; }
     save(); render();
-    alert(matched+' '+t('syncedSuffix'));
+    toast(matched+' '+t('syncedSuffix'), matched>0?'ok':undefined);
   }catch(e){
-    alert(t('sendFailedAlert')+e.message);
+    toast(t('sendFailedAlert')+e.message,'err');
   }
 }
 /* silent background sync on load - covers this week + last week so anything
