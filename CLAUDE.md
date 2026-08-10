@@ -29,7 +29,13 @@ Frontend and backend can be deployed separately. Frontend can go to GitHub Pages
 2. Auth is TOKEN based, not password per request. A long-lived Garth token
    (~1 year, auto-refresh) lives in the `GARTH_TOKEN` env var. Password is never
    sent from the app or stored. Token generated once via `scripts/generate_token.py`.
-3. Owner's Garmin account has NO MFA, so a plain login in the token script works.
+3. Owner's Garmin account now has authenticator-app MFA enabled (enabled 2026-08,
+   after a token leak). `scripts/generate_token.py`'s `prompt_mfa` callback handles
+   this — just paste the current 6-digit code from the authenticator app promptly
+   (TOTP codes rotate every ~30s). `garminconnect` is pinned to `0.3.9`, which
+   routes MFA completion through Garmin's proper JSON API for the `mobile`/`portal`
+   login strategies; the older `0.3.6` mishandled this account's MFA method via a
+   fragile HTML-scrape fallback (`widget` strategy) and failed outright.
 4. First version is RUNNING ONLY. Strength / rowing / elliptical come later
    (Garmin restricts third-party strength pushes; those will use
    `FitnessEquipmentWorkout` and may land with reduced structure).

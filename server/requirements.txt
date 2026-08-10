@@ -1,2 +1,2 @@
 fastapi
-garminconnect==0.3.6
+garminconnect==0.3.9
