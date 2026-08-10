@@ -68,6 +68,22 @@ class WeekPayload(BaseModel):
 
 # ---------- Garmin auth via stored token ----------
 
+def _describe_exception(e: Exception, depth: int = 4) -> str:
+    """garminconnect wraps failures (e.g. 'Failed to retrieve social profile')
+    without including the underlying cause in the message, and only logs it at
+    debug level - which Vercel doesn't capture. Walk __cause__/__context__ so
+    the actual root error (HTTP status, timeout, etc.) reaches the response.
+    """
+    parts = [str(e)]
+    cur = e
+    for _ in range(depth):
+        nxt = getattr(cur, "__cause__", None) or getattr(cur, "__context__", None)
+        if not nxt or nxt is cur:
+            break
+        parts.append(f"{type(nxt).__name__}: {nxt}")
+        cur = nxt
+    return " | caused by: ".join(parts)
+
 def get_client() -> Garmin:
     token = os.environ.get("GARTH_TOKEN")
     if not token:
@@ -196,7 +212,7 @@ def schedule_week(payload: WeekPayload, x_api_secret: Optional[str] = Header(def
     except HTTPException:
         raise
     except Exception as e:
-        return {"results": [], "error": f"garmin auth failed: {e}"}
+        return {"results": [], "error": f"garmin auth failed: {_describe_exception(e)}"}
 
     results = []
     for w in payload.workouts:
