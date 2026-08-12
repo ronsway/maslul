@@ -9,12 +9,15 @@ Runs anywhere with Python, including Google Colab from a phone browser
     python generate_token.py
 
 Enter your Garmin email and password when prompted. If MFA is on, you will
-also be asked for a code. Copy the long string printed after GARTH_TOKEN=
-and paste it into the backend env vars (Vercel: Settings -> Environment
-Variables -> GARTH_TOKEN). Do NOT paste it into a chat. It is valid ~1 year.
+also be asked for a code. When run locally (not Colab), the token is written
+straight to server/.env.garth_token (gitignored, never printed in full) so
+scripts/set_garth_token.bat can push it to Vercel without it ever passing
+through a chat or being retyped by hand.
 """
 
 from getpass import getpass
+from pathlib import Path
+
 from garminconnect import Garmin
 
 email = input("Garmin email: ").strip()
@@ -23,7 +26,17 @@ password = getpass("Garmin password: ")   # hidden in a terminal; visible in Col
 client = Garmin(email, password, prompt_mfa=lambda: input("MFA code (if asked): "))
 client.login()
 
-print("\n\n===== copy the line below into GARTH_TOKEN =====\n")
 # garminconnect 0.3.x exposes the garth session as client.client
-print(client.client.dumps())
-print("\n===== end =====")
+token = client.client.dumps()
+
+token_file = Path(__file__).resolve().parent.parent / "server" / ".env.garth_token"
+try:
+    with open(token_file, "w", newline="") as f:
+        f.write(token)
+    print(f"\nToken written to {token_file}")
+    print("Run scripts\\set_garth_token.bat to push it to Vercel.")
+except OSError:
+    # e.g. running in Colab where server/ doesn't exist - fall back to printing
+    print("\n\n===== copy the line below into GARTH_TOKEN =====\n")
+    print(token)
+    print("\n===== end =====")
