@@ -156,6 +156,28 @@
   .grab{width:40px; height:4px; background:var(--line); border-radius:3px; margin:8px auto 12px;}
   .sheet h2{font-family:'Rubik'; font-weight:800; font-size:20px; margin:2px 0 16px;}
 
+  /* ---- settings drawer (side panel, direction-aware) ---- */
+  .hdrstart{display:flex; align-items:center; gap:10px;}
+  .hamburger{width:40px; height:40px; border-radius:12px; background:var(--panel2);
+    border:1px solid var(--line); font-size:18px; color:var(--txt); display:grid; place-items:center; flex:none;}
+  .drawerscrim{position:fixed; inset:0; background:rgba(6,8,11,.66); backdrop-filter:blur(2px);
+    z-index:41; animation:scrimIn .22s ease;}
+  .drawerscrim.closing{animation:scrimOut .22s ease forwards;}
+  @keyframes scrimIn{from{opacity:0;} to{opacity:1;}}
+  @keyframes scrimOut{from{opacity:1;} to{opacity:0;}}
+  .drawer{position:fixed; top:0; bottom:0; width:min(86vw,380px); background:var(--ink);
+    padding:18px 18px calc(20px + env(safe-area-inset-bottom)); overflow-y:auto; box-sizing:border-box;
+    box-shadow:0 0 40px rgba(0,0,0,.45);}
+  .drawer h2{font-weight:800; font-size:20px; margin:2px 0 16px;}
+  .drawer.side-right{right:0; border-left:1px solid var(--line); animation:drawerInR .26s cubic-bezier(.2,.8,.2,1);}
+  .drawer.side-right.closing{animation:drawerOutR .22s ease forwards;}
+  .drawer.side-left{left:0; border-right:1px solid var(--line); animation:drawerInL .26s cubic-bezier(.2,.8,.2,1);}
+  .drawer.side-left.closing{animation:drawerOutL .22s ease forwards;}
+  @keyframes drawerInR{from{transform:translateX(100%);} to{transform:translateX(0);}}
+  @keyframes drawerOutR{from{transform:translateX(0);} to{transform:translateX(100%);}}
+  @keyframes drawerInL{from{transform:translateX(-100%);} to{transform:translateX(0);}}
+  @keyframes drawerOutL{from{transform:translateX(0);} to{transform:translateX(-100%);}}
+
   .types{display:grid; grid-template-columns:repeat(2,1fr); gap:9px; margin-bottom:18px;}
   .type{border:1px solid var(--line); background:var(--panel); border-radius:14px; padding:13px 12px; text-align:start;}
   .type.on{border-color:var(--work); background:linear-gradient(180deg,#241a19,var(--panel));}
@@ -735,7 +757,7 @@ function render(){
   // innerHTML replacement below destroys and recreates the sheet element, which
   // resets its scroll position to 0 - save/restore it so clicking a toggle deep in
   // a long editor sheet doesn't snap the view back to the top.
-  const prevScroll=document.querySelector('.sheet')?.scrollTop;
+  const prevScroll=document.querySelector('.sheet, .drawer')?.scrollTop;
   if(!AUTH.ready){ app.innerHTML=loadingScreen(); return; }
   if(!AUTH.session){ app.innerHTML=loginScreen(); return; }
   const wk=weekDates(S.offset);
@@ -754,7 +776,10 @@ function render(){
 
   app.innerHTML=`
   <header>
-    <div class="brand"><h1 class="disp">Maslul</h1><span class="tick"></span></div>
+    <div class="hdrstart">
+      <button class="hamburger" onclick="openProfile()" aria-label="menu">☰</button>
+      <div class="brand"><h1 class="disp">Maslul</h1><span class="tick"></span></div>
+    </div>
     <div class="hdrbtns">
       <button class="langbtn" onclick="openStats()">📊</button>
       <button class="langbtn" onclick="setLang('${S.lang==='he'?'en':'he'}')">${S.lang==='he'?'EN':'עב'}</button>
@@ -813,7 +838,7 @@ function render(){
   ${renderSheet()}`;
 
   attachSwipe();
-  if(prevScroll){ const s=document.querySelector('.sheet'); if(s) s.scrollTop=prevScroll; }
+  if(prevScroll){ const s=document.querySelector('.sheet, .drawer'); if(s) s.scrollTop=prevScroll; }
 }
 
 function renderDay(date){
@@ -1052,8 +1077,9 @@ function profileSheet(){
   const races=(p.races||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
   const googleAvatar=AUTH.session?.user?.user_metadata?.avatar_url||AUTH.session?.user?.user_metadata?.picture||'';
   const initial=(p.name||'?').trim().charAt(0).toUpperCase()||'?';
-  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
-    <div class="grab"></div>
+  const side=S.lang==='he'?'side-right':'side-left';
+  const closing=S.sheet.closing?' closing':'';
+  return `<div class="drawerscrim${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${closing}">
     <h2 class="disp">${t('profileTitle')}</h2>
     <div style="display:flex; align-items:center; gap:14px; margin-bottom:18px">
       <div class="avatarbig">${p.photo?`<img src="${p.photo}">`:initial}</div>
@@ -1095,7 +1121,15 @@ function nav(dir){ S.offset+=dir; render(); }
 function pick(i){ S.sel=i; render(); }
 function openProfile(){ S.sheet={mode:'profile', raceDraft:{date:'',name:'',km:''}}; render(); }
 function saveProfile(){ save(); closeSheet(); }
-function closeSheet(){ S.sheet=null; render(); }
+function closeSheet(){
+  if(S.sheet && S.sheet.mode==='profile'){
+    if(S.sheet.closing) return;
+    S.sheet.closing=true; render();
+    setTimeout(()=>{ S.sheet=null; render(); }, 220);
+    return;
+  }
+  S.sheet=null; render();
+}
 
 function readAndResizeImage(file, maxSize){
   return new Promise((resolve,reject)=>{
