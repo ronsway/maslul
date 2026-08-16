@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.5 - 2026-08-16 14:56 - Fix avatar frame not filling circle, races silently lost on Save
+
 ## v1.0.4 - 2026-08-16 09:46 - Fix header avatar button being squeezed into an oval
 
 ## v1.0.3 - 2026-08-16 08:17 - Fix race data loss, photo crop editor, categorized settings, pull-to-refresh, rest-day illustrations
