@@ -222,6 +222,8 @@
   .toggle button{flex:1; padding:8px 0; font-size:12px; font-weight:700; color:var(--muted);}
   .toggle button.on{background:var(--work); color:#1a0d09;}
   .minilbl{font-size:11px; color:var(--muted); margin-bottom:5px; font-weight:600;}
+  .drawersec{border-top:1px solid var(--line); margin-top:20px; padding-top:16px;}
+  .drawersec .minilbl{font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); margin-bottom:12px;}
 
   .addblk{width:100%; padding:11px; border-radius:12px; border:1px dashed var(--line);
     color:var(--muted); font-weight:700; font-size:13px; margin-bottom:16px;}
@@ -247,6 +249,20 @@
   .res{border-radius:12px; padding:11px 12px; margin-bottom:8px; font-size:14px; display:flex; justify-content:space-between; gap:10px;}
   .res.ok{background:var(--res-ok-bg); border:1px solid var(--res-ok-border); color:var(--res-ok-text);}
   .res.err{background:var(--res-err-bg); border:1px solid var(--res-err-border); color:var(--res-err-text);}
+
+  /* ---- photo crop editor ---- */
+  .cropoverlay{position:fixed; inset:0; background:rgba(6,8,11,.78); backdrop-filter:blur(2px);
+    z-index:60; display:flex; align-items:center; justify-content:center; padding:20px; animation:scrimIn .18s ease;}
+  .cropbox{background:var(--ink); border:1px solid var(--line); border-radius:20px; padding:20px;
+    width:100%; max-width:340px; box-shadow:var(--shadow); text-align:center;}
+  .cropbox h2{font-weight:800; font-size:18px; margin:2px 0 4px;}
+  .crophint{font-size:12.5px; color:var(--muted); margin-bottom:16px;}
+  .cropview{position:relative; overflow:hidden; border-radius:50%; margin:0 auto 16px;
+    background:var(--panel2); border:1px solid var(--line); touch-action:none; cursor:grab;}
+  .cropview img{position:absolute; top:50%; left:50%; max-width:none; user-select:none; -webkit-user-drag:none;}
+  .cropzoom{width:100%; margin-bottom:16px; accent-color:var(--work);}
+  .croprow{display:flex; gap:10px;}
+  .croprow button{flex:1; margin:0;}
 
   /* ---- pull to refresh ---- */
   .pullwrap{position:fixed; top:0; left:0; right:0; display:flex; justify-content:center; z-index:150;
@@ -304,7 +320,9 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 
 /* ============ auth ============ */
 let AUTH={ready:false, session:null};
+let pendingSave=null; // in-flight save() upsert, if any - see loadCloudData()
 async function loadCloudData(userId){
+  if(pendingSave) await pendingSave; // flush any in-flight write first, or we'd read stale data and clobber it
   const {data}=await sb.from('user_data').select('plan, profile').eq('user_id',userId).maybeSingle();
   if(data){
     S.plan=data.plan||{};
@@ -378,7 +396,10 @@ const T={
   sendToGarmin:{he:'שלח לגרמין', en:'Send to Garmin'},
   showPayload:{he:'הצג את ה-JSON שיישלח', en:'Show JSON to be sent'},
   close:{he:'סגור', en:'Close'},
-  profileTitle:{he:'הפרופיל שלי', en:'My profile'},
+  profileTitle:{he:'הגדרות', en:'Settings'},
+  secProfile:{he:'פרופיל', en:'Profile'},
+  secZones:{he:'איזורי אימון', en:'Training zones'},
+  secAccount:{he:'חשבון', en:'Account'},
   name:{he:'שם', en:'Name'},
   maxHR:{he:'דופק מקסימלי', en:'Max heart rate'},
   restHR:{he:'דופק מנוחה', en:'Resting heart rate'},
@@ -407,6 +428,8 @@ const T={
   removePhoto:{he:'הסר תמונה', en:'Remove photo'},
   noGooglePhoto:{he:'לא נמצאה תמונת גוגל', en:'No Google photo found'},
   photoFailedAlert:{he:'טעינת התמונה נכשלה', en:'Failed to load the photo'},
+  cropTitle:{he:'מיקום התמונה', en:'Position photo'},
+  cropHint:{he:'גררו כדי להזיז, החליקו כדי להתקרב', en:'Drag to move, use the slider to zoom'},
   statsTitle:{he:'סטטיסטיקות', en:'Statistics'},
   monthKm:{he:'ק״מ החודש (בוצע/מתוכנן)', en:'km this month (done/planned)'},
   monthWorkouts:{he:'אימונים שבוצעו', en:'workouts completed'},
@@ -639,8 +662,14 @@ function save(){
   store.set('plan',S.plan); store.set('profile',S.profile);
   // supabase-js query builders are lazy "thenables" - the request is only actually
   // sent once .then()/await runs, so this must not be a bare un-awaited statement.
-  if(AUTH.session) sb.from('user_data').upsert({user_id:AUTH.session.user.id, plan:S.plan, profile:S.profile})
-    .then(({error})=>{ if(error) console.error('cloud save failed', error); });
+  // Tracked in pendingSave so loadCloudData() can wait for it - otherwise a refresh
+  // triggered right after a local edit can read back the pre-edit cloud row and
+  // silently overwrite the edit (this is how added races were getting lost).
+  if(AUTH.session){
+    pendingSave=sb.from('user_data').upsert({user_id:AUTH.session.user.id, plan:S.plan, profile:S.profile})
+      .then(({error})=>{ if(error) console.error('cloud save failed', error); })
+      .finally(()=>{ pendingSave=null; });
+  }
 }
 function dayWorkouts(date){ return S.plan[ymd(date)]||[]; }
 
@@ -1134,39 +1163,55 @@ function profileSheet(){
   const closing=S.sheet.closing?' closing':'';
   return `<div class="drawerscrim${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${closing}">
     <h2 class="disp">${t('profileTitle')}</h2>
-    <div style="display:flex; align-items:center; gap:14px; margin-bottom:18px">
-      <div class="avatarbig">${p.photo?`<img src="${p.photo}">`:initial}</div>
-      <div style="display:flex; flex-direction:column; gap:8px; flex:1">
-        <input type="file" accept="image/*" id="photoInput" style="display:none" onchange="onPhotoFile(this)">
-        <button class="ghost" style="margin:0" onclick="document.getElementById('photoInput').click()">${t('uploadPhoto')}</button>
-        ${googleAvatar?`<button class="ghost" style="margin:0" onclick="importGooglePhoto()">${t('importGooglePhoto')}</button>`:''}
-        ${p.photo?`<button class="ghost" style="margin:0; color:#ff7a68" onclick="removePhoto()">${t('removePhoto')}</button>`:''}
+
+    <div class="drawersec" style="margin-top:0; border-top:none; padding-top:0">
+      <div class="minilbl">${t('secProfile')}</div>
+      <div style="display:flex; align-items:center; gap:14px; margin-bottom:18px">
+        <div class="avatarbig">${p.photo?`<img src="${p.photo}">`:initial}</div>
+        <div style="display:flex; flex-direction:column; gap:8px; flex:1">
+          <input type="file" accept="image/*" id="photoInput" style="display:none" onchange="onPhotoFile(this)">
+          <button class="ghost" style="margin:0" onclick="document.getElementById('photoInput').click()">${t('uploadPhoto')}</button>
+          ${googleAvatar?`<button class="ghost" style="margin:0" onclick="importGooglePhoto()">${t('importGooglePhoto')}</button>`:''}
+          ${p.photo?`<button class="ghost" style="margin:0; color:#ff7a68" onclick="removePhoto()">${t('removePhoto')}</button>`:''}
+        </div>
       </div>
+      <div class="field" style="margin-bottom:0"><label>${t('name')}</label><input value="${p.name||''}" oninput="S.profile.name=this.value"></div>
     </div>
-    <div class="field"><label>${t('name')}</label><input value="${p.name||''}" oninput="S.profile.name=this.value"></div>
-    <div class="row2">
-      <div class="field"><label>${t('maxHR')}</label><input class="mono" inputmode="numeric" value="${p.maxHR||''}" oninput="S.profile.maxHR=this.value"></div>
-      <div class="field"><label>${t('restHR')}</label><input class="mono" inputmode="numeric" value="${p.restHR||''}" oninput="S.profile.restHR=this.value"></div>
-    </div>
-    <div class="field"><label>${t('thrPace')}</label><input class="mono" dir="ltr" value="${p.thrPace||''}" placeholder="4:30" oninput="S.profile.thrPace=this.value"></div>
 
-    <div class="minilbl" style="margin:16px 0 8px">${t('racesTitle')}</div>
-    ${races.length? races.map(r=>`<div class="step" style="padding:6px 0">
-        <span class="lbl">${r.name} · ${r.date}${r.km?' · '+r.km+'km':''}</span>
-        <button class="rm" onclick="delRace('${r.id}')">${t('remove')}</button></div>`).join('')
-      : `<div class="note" style="margin-bottom:10px">${t('noRaces')}</div>`}
-    <div class="field"><label>${t('raceName')}</label><input value="${rd.name}" oninput="raceDraftField('name',this.value)"></div>
-    <div class="row2">
-      <div class="field"><label>${t('raceDate')}</label><input class="mono" dir="ltr" type="date" value="${rd.date}" oninput="raceDraftField('date',this.value)"></div>
-      <div class="field"><label>${t('raceDist')}</label><input class="mono" inputmode="decimal" value="${rd.km}" oninput="raceDraftField('km',this.value)"></div>
+    <div class="drawersec">
+      <div class="minilbl">${t('secZones')}</div>
+      <div class="row2">
+        <div class="field"><label>${t('maxHR')}</label><input class="mono" inputmode="numeric" value="${p.maxHR||''}" oninput="S.profile.maxHR=this.value"></div>
+        <div class="field"><label>${t('restHR')}</label><input class="mono" inputmode="numeric" value="${p.restHR||''}" oninput="S.profile.restHR=this.value"></div>
+      </div>
+      <div class="field" style="margin-bottom:0"><label>${t('thrPace')}</label><input class="mono" dir="ltr" value="${p.thrPace||''}" placeholder="4:30" oninput="S.profile.thrPace=this.value"></div>
     </div>
-    <button class="addblk" onclick="addRace()">${t('addRace')}</button>
 
-    <div class="note">${t('connectedAs')}${AUTH.session?.user?.email||''}${t('syncNote')}</div>
-    <button class="primary disp" onclick="saveProfile()" style="margin-top:14px">${t('save')}</button>
-    <button class="ghost signout" onclick="signOut()">${t('signOut')}</button>
-    <button class="ghost" onclick="closeSheet()">${t('close')}</button>
-    <div class="mono" style="text-align:center; color:var(--muted); font-size:11px; margin-top:16px; direction:ltr">v${window.APP_VERSION||'?'}${window.APP_BUILD_TIME?' · '+window.APP_BUILD_TIME:''}</div>
+    <div class="drawersec">
+      <div class="minilbl">${t('racesTitle')}</div>
+      ${races.length? races.map(r=>`<div class="step" style="padding:6px 0">
+          <span class="lbl">${r.name} · ${r.date}${r.km?' · '+r.km+'km':''}</span>
+          <button class="rm" onclick="delRace('${r.id}')">${t('remove')}</button></div>`).join('')
+        : `<div class="note" style="margin-bottom:10px">${t('noRaces')}</div>`}
+      <div class="field"><label>${t('raceName')}</label><input value="${rd.name}" oninput="raceDraftField('name',this.value)"></div>
+      <div class="row2">
+        <div class="field"><label>${t('raceDate')}</label><input class="mono" dir="ltr" type="date" value="${rd.date}" oninput="raceDraftField('date',this.value)"></div>
+        <div class="field"><label>${t('raceDist')}</label><input class="mono" inputmode="decimal" value="${rd.km}" oninput="raceDraftField('km',this.value)"></div>
+      </div>
+      <button class="addblk" style="margin-bottom:0" onclick="addRace()">${t('addRace')}</button>
+    </div>
+
+    <div class="drawersec">
+      <div class="minilbl">${t('secAccount')}</div>
+      <div class="note">${t('connectedAs')}${AUTH.session?.user?.email||''}${t('syncNote')}</div>
+      <button class="ghost signout" onclick="signOut()">${t('signOut')}</button>
+    </div>
+
+    <div class="drawersec">
+      <button class="primary disp" onclick="saveProfile()">${t('save')}</button>
+      <button class="ghost" onclick="closeSheet()">${t('close')}</button>
+      <div class="mono" style="text-align:center; color:var(--muted); font-size:11px; margin-top:16px; direction:ltr">v${window.APP_VERSION||'?'}${window.APP_BUILD_TIME?' · '+window.APP_BUILD_TIME:''}</div>
+    </div>
   </div></div>`;
 }
 
@@ -1185,38 +1230,119 @@ function closeSheet(){
   S.sheet=null; render();
 }
 
-function readAndResizeImage(file, maxSize){
-  return new Promise((resolve,reject)=>{
-    const reader=new FileReader();
-    reader.onload=()=>{
-      const img=new Image();
-      img.onload=()=>{
-        const s=Math.min(img.width,img.height);
-        const canvas=document.createElement('canvas');
-        canvas.width=maxSize; canvas.height=maxSize;
-        canvas.getContext('2d').drawImage(img, (img.width-s)/2, (img.height-s)/2, s, s, 0, 0, maxSize, maxSize);
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
-      };
-      img.onerror=reject;
-      img.src=reader.result;
-    };
-    reader.onerror=reject;
-    reader.readAsDataURL(file);
-  });
-}
-async function onPhotoFile(input){
-  const file=input.files && input.files[0]; if(!file) return;
-  try{
-    S.profile.photo=await readAndResizeImage(file, 200);
-    save(); render();
-  }catch(e){ toast(t('photoFailedAlert'),'err'); }
+function onPhotoFile(input){
+  const file=input.files && input.files[0]; input.value='';
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const img=new Image();
+    img.onload=()=>openPhotoCropper(img);
+    img.onerror=()=>toast(t('photoFailedAlert'),'err');
+    img.src=reader.result;
+  };
+  reader.onerror=()=>toast(t('photoFailedAlert'),'err');
+  reader.readAsDataURL(file);
 }
 function importGooglePhoto(){
   const url=AUTH.session?.user?.user_metadata?.avatar_url||AUTH.session?.user?.user_metadata?.picture;
   if(!url){ toast(t('noGooglePhoto')); return; }
-  S.profile.photo=url; save(); render();
+  const img=new Image();
+  img.crossOrigin='anonymous';
+  img.onload=()=>openPhotoCropper(img);
+  img.onerror=()=>toast(t('photoFailedAlert'),'err');
+  img.src=url;
 }
 function removePhoto(){ S.profile.photo=''; save(); render(); }
+
+/* ---- photo crop editor: drag to pan, slider to zoom, over a circular preview
+   matching the final avatar shape, so the user picks the framing themselves
+   instead of the app blindly center-cropping (which was cutting faces off) ---- */
+function openPhotoCropper(img){
+  const VIEW=240, OUT=480;
+  const overlay=document.createElement('div');
+  overlay.className='cropoverlay';
+  overlay.innerHTML=`<div class="cropbox">
+    <h2 class="disp">${t('cropTitle')}</h2>
+    <div class="crophint">${t('cropHint')}</div>
+    <div class="cropview" style="width:${VIEW}px; height:${VIEW}px"><img id="cropimg" draggable="false" alt=""></div>
+    <input type="range" class="cropzoom" id="cropzoom" min="0" max="1" step="0.001" value="0">
+    <div class="croprow">
+      <button class="ghost" id="cropcancel">${t('cancel')}</button>
+      <button class="primary disp" id="cropsave">${t('save')}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+
+  const imgEl=overlay.querySelector('#cropimg');
+  const zoomEl=overlay.querySelector('#cropzoom');
+  const viewEl=overlay.querySelector('.cropview');
+  imgEl.src=img.src;
+
+  const minScale=VIEW/Math.min(img.width,img.height);
+  const maxScale=minScale*3;
+  let scale=minScale, x=0, y=0;
+
+  function apply(){
+    imgEl.style.width=(img.width*scale)+'px';
+    imgEl.style.height=(img.height*scale)+'px';
+    imgEl.style.transform=`translate(-50%,-50%) translate(${x}px,${y}px)`;
+  }
+  function clamp(){
+    const w=img.width*scale, h=img.height*scale;
+    const maxX=Math.max(0,(w-VIEW)/2), maxY=Math.max(0,(h-VIEW)/2);
+    x=Math.min(maxX,Math.max(-maxX,x));
+    y=Math.min(maxY,Math.max(-maxY,y));
+  }
+  clamp(); apply();
+
+  let dragging=false, sx=0, sy=0, ox=0, oy=0;
+  function ptPos(e){ const p=e.touches?e.touches[0]:e; return {cx:p.clientX, cy:p.clientY}; }
+  function ptDown(e){ dragging=true; const p=ptPos(e); sx=p.cx; sy=p.cy; ox=x; oy=y; viewEl.style.cursor='grabbing'; }
+  function ptMove(e){
+    if(!dragging) return;
+    const p=ptPos(e);
+    x=ox+(p.cx-sx); y=oy+(p.cy-sy);
+    clamp(); apply();
+    e.preventDefault();
+  }
+  function ptUp(){ dragging=false; viewEl.style.cursor='grab'; }
+  viewEl.addEventListener('mousedown', ptDown);
+  window.addEventListener('mousemove', ptMove);
+  window.addEventListener('mouseup', ptUp);
+  viewEl.addEventListener('touchstart', ptDown, {passive:true});
+  viewEl.addEventListener('touchmove', ptMove, {passive:false});
+  viewEl.addEventListener('touchend', ptUp);
+
+  zoomEl.addEventListener('input', ()=>{
+    scale=minScale+(maxScale-minScale)*parseFloat(zoomEl.value);
+    clamp(); apply();
+  });
+
+  function cleanup(){
+    window.removeEventListener('mousemove', ptMove);
+    window.removeEventListener('mouseup', ptUp);
+    overlay.remove();
+  }
+  overlay.querySelector('#cropcancel').onclick=cleanup;
+  overlay.querySelector('#cropsave').onclick=()=>{
+    const canvas=document.createElement('canvas');
+    canvas.width=OUT; canvas.height=OUT;
+    const ctx=canvas.getContext('2d');
+    const srcSize=VIEW/scale;
+    const srcX0=img.width/2 - x/scale - srcSize/2;
+    const srcY0=img.height/2 - y/scale - srcSize/2;
+    try{
+      ctx.drawImage(img, srcX0, srcY0, srcSize, srcSize, 0, 0, OUT, OUT);
+      S.profile.photo=canvas.toDataURL('image/jpeg', 0.88);
+      save(); render();
+    }catch(e){
+      // canvas taints on cross-origin images without proper CORS headers (can happen
+      // for the Google avatar path) - fall back to using the source image untouched
+      S.profile.photo=img.src; save(); render();
+    }
+    cleanup();
+  };
+}
 
 function raceDraftField(k,v){ S.sheet.raceDraft[k]=v; }
 function syncRaceWorkout(race){
