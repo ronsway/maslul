@@ -25,6 +25,19 @@
     --rec:#35C6B4;    /* recovery / easy */
     --easy:#5FB0FF;   /* steady volume */
     --shadow:0 8px 30px rgba(0,0,0,.45);
+    --del-border:#3a2422;
+    --res-ok-bg:#12251f; --res-ok-border:#1e3a30; --res-ok-text:#8fe6cf;
+    --res-err-bg:#2a1512; --res-err-border:#3a201c; --res-err-text:#ff9d8c;
+    --type-on-bg:linear-gradient(180deg,#241a19,var(--panel));
+  }
+  :root[data-theme="light"]{
+    --ink:#F6F7F9; --panel:#FFFFFF; --panel2:#EEF1F5; --line:#DEE3EA;
+    --txt:#1A1F27; --muted:#6B7684; --muted2:#8D96A3;
+    --shadow:0 8px 24px rgba(20,25,35,.12);
+    --del-border:#ffd3c8;
+    --res-ok-bg:#e3f8f1; --res-ok-border:#bdeee0; --res-ok-text:#1a8f6f;
+    --res-err-bg:#fdeceb; --res-err-border:#f8cec8; --res-err-text:#c23d2b;
+    --type-on-bg:linear-gradient(180deg,#fff1e8,var(--panel));
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0; padding:0; background:var(--ink); color:var(--txt);
@@ -66,7 +79,7 @@
   .day:active{transform:scale(.96);}
   .day .dn{font-size:12px; color:var(--muted); font-weight:600;}
   .day .dd{font-family:'JetBrains Mono'; font-weight:700; font-size:17px; margin-top:2px;}
-  .day.sel{border-color:var(--work); background:linear-gradient(180deg,#241a19,var(--panel));}
+  .day.sel{border-color:var(--work); background:var(--type-on-bg);}
   .day.today .dd{color:var(--warm);}
   .day .dots{display:flex; gap:3px; justify-content:center; margin-top:6px; height:6px;}
   .day .dot{width:6px; height:6px; border-radius:50%;}
@@ -103,7 +116,7 @@
   .cardacts{display:flex; gap:8px; margin-top:13px;}
   .cardacts button{flex:1; padding:9px; border-radius:11px; font-weight:700; font-size:14px;
     border:1px solid var(--line); background:var(--panel2);}
-  .cardacts .del{color:#ff7a68; border-color:#3a2422;}
+  .cardacts .del{color:#ff7a68; border-color:var(--del-border);}
   .cardacts .donebtn.on{background:var(--rec); color:#062019; border-color:var(--rec);}
 
   /* ---- weekly km bar ---- */
@@ -181,7 +194,7 @@
 
   .types{display:grid; grid-template-columns:repeat(2,1fr); gap:9px; margin-bottom:18px;}
   .type{border:1px solid var(--line); background:var(--panel); border-radius:14px; padding:13px 12px; text-align:start;}
-  .type.on{border-color:var(--work); background:linear-gradient(180deg,#241a19,var(--panel));}
+  .type.on{border-color:var(--work); background:var(--type-on-bg);}
   .type .tn{font-family:'Rubik'; font-weight:700; font-size:15px;}
   .type .td{color:var(--muted); font-size:12px; margin-top:2px;}
 
@@ -207,7 +220,7 @@
   .toggle{display:flex; background:var(--panel2); border:1px solid var(--line); border-radius:10px; overflow:hidden;}
   .toggle button{flex:1; padding:8px 0; font-size:12px; font-weight:700; color:var(--muted);}
   .toggle button.on{background:var(--work); color:#1a0d09;}
-  .minilbl{font-size:11px; color:var(--muted2); margin-bottom:5px; font-weight:600;}
+  .minilbl{font-size:11px; color:var(--muted); margin-bottom:5px; font-weight:600;}
 
   .addblk{width:100%; padding:11px; border-radius:12px; border:1px dashed var(--line);
     color:var(--muted); font-weight:700; font-size:13px; margin-bottom:16px;}
@@ -215,7 +228,7 @@
   .gendays{display:flex; gap:6px; margin-bottom:18px;}
   .gendays button{flex:1; padding:10px 0; border-radius:10px; background:var(--panel);
     border:1px solid var(--line); font-weight:700; font-size:12px; color:var(--muted);}
-  .gendays button.on{border-color:var(--work); background:linear-gradient(180deg,#241a19,var(--panel)); color:var(--txt);}
+  .gendays button.on{border-color:var(--work); background:var(--type-on-bg); color:var(--txt);}
   .primary{width:100%; padding:15px; border-radius:14px; font-family:'Rubik'; font-weight:800; font-size:16px;
     background:linear-gradient(135deg,var(--work),#ff7b45); color:#1a0d09; margin-top:6px;
     display:flex; align-items:center; justify-content:center; gap:8px;}
@@ -231,8 +244,8 @@
   .payload{font-family:'JetBrains Mono'; font-size:11px; direction:ltr; text-align:left; white-space:pre-wrap;
     background:#0a0c10; border:1px solid var(--line); border-radius:12px; padding:12px; max-height:240px; overflow:auto; color:#9fb0c4;}
   .res{border-radius:12px; padding:11px 12px; margin-bottom:8px; font-size:14px; display:flex; justify-content:space-between; gap:10px;}
-  .res.ok{background:#12251f; border:1px solid #1e3a30; color:#8fe6cf;}
-  .res.err{background:#2a1512; border:1px solid #3a201c; color:#ff9d8c;}
+  .res.ok{background:var(--res-ok-bg); border:1px solid var(--res-ok-border); color:var(--res-ok-text);}
+  .res.err{background:var(--res-err-bg); border:1px solid var(--res-err-border); color:var(--res-err-text);}
 
   /* ---- toast notifications ---- */
   .toastwrap{position:fixed; top:0; left:0; right:0; display:flex; flex-direction:column; align-items:center;
@@ -419,6 +432,7 @@ const PHASE_NAME={
 };
 function t(k){ return T[k][S.lang]; }
 function setLang(l){ S.lang=l; store.set('lang',l); render(); }
+function setTheme(th){ S.theme=th; store.set('theme',th); render(); }
 
 /* ============ helpers ============ */
 const pad=n=>String(n).padStart(2,'0');
@@ -587,6 +601,7 @@ function fmtDistInput(m){
 let S={
   offset:0, sel:new Date().getDay(),
   lang: store.get('lang','he'),
+  theme: store.get('theme','dark'),
   plan: store.get('plan',{}),
   profile: store.get('profile',{name:'', maxHR:'', restHR:'', thrPace:'', races:[], photo:''}),
   sheet:null, // {mode:'edit'|'send', draft, editIndex}
@@ -755,6 +770,9 @@ function loadingScreen(){ return `<div class="gate"><div class="brand"><h1 class
 function render(){
   document.documentElement.lang=S.lang;
   document.documentElement.dir=S.lang==='he'?'rtl':'ltr';
+  document.documentElement.setAttribute('data-theme', S.theme);
+  const themeMeta=document.querySelector('meta[name="theme-color"]');
+  if(themeMeta) themeMeta.setAttribute('content', S.theme==='light'?'#F6F7F9':'#0E1116');
   // innerHTML replacement below destroys and recreates the sheet element, which
   // resets its scroll position to 0 - save/restore it so clicking a toggle deep in
   // a long editor sheet doesn't snap the view back to the top.
@@ -783,6 +801,7 @@ function render(){
     </div>
     <div class="hdrbtns">
       <button class="langbtn" onclick="openStats()">📊</button>
+      <button class="langbtn" onclick="setTheme('${S.theme==='light'?'dark':'light'}')">${S.theme==='light'?'🌙':'☀️'}</button>
       <button class="langbtn" onclick="setLang('${S.lang==='he'?'en':'he'}')">${S.lang==='he'?'EN':'עב'}</button>
       <button class="profbtn" onclick="openProfile()">${S.profile.photo?`<img src="${S.profile.photo}">`:initials.toUpperCase()}</button>
     </div>
@@ -1114,7 +1133,7 @@ function profileSheet(){
     <button class="primary disp" onclick="saveProfile()" style="margin-top:14px">${t('save')}</button>
     <button class="ghost signout" onclick="signOut()">${t('signOut')}</button>
     <button class="ghost" onclick="closeSheet()">${t('close')}</button>
-    <div class="mono" style="text-align:center; color:var(--muted2); font-size:11px; margin-top:16px; direction:ltr">v${window.APP_VERSION||'?'}${window.APP_BUILD_TIME?' · '+window.APP_BUILD_TIME:''}</div>
+    <div class="mono" style="text-align:center; color:var(--muted); font-size:11px; margin-top:16px; direction:ltr">v${window.APP_VERSION||'?'}${window.APP_BUILD_TIME?' · '+window.APP_BUILD_TIME:''}</div>
   </div></div>`;
 }
 
