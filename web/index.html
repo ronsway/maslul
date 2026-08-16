@@ -92,6 +92,7 @@
 
   .empty{border:1.5px dashed var(--line); border-radius:16px; padding:26px 18px;
     text-align:center; color:var(--muted);}
+  .empty .emoji{font-size:44px; line-height:1; margin-bottom:10px;}
   .empty .big{font-family:'Rubik'; font-weight:700; color:var(--txt); font-size:16px; margin-bottom:4px;}
 
   .card{background:var(--panel); border:1px solid var(--line); border-radius:18px;
@@ -247,6 +248,16 @@
   .res.ok{background:var(--res-ok-bg); border:1px solid var(--res-ok-border); color:var(--res-ok-text);}
   .res.err{background:var(--res-err-bg); border:1px solid var(--res-err-border); color:var(--res-err-text);}
 
+  /* ---- pull to refresh ---- */
+  .pullwrap{position:fixed; top:0; left:0; right:0; display:flex; justify-content:center; z-index:150;
+    padding-top:calc(14px + env(safe-area-inset-top)); pointer-events:none;
+    transform:translateY(-60px); transition:transform .25s ease;}
+  .pullball{width:34px; height:34px; border-radius:50%; background:var(--panel); border:1px solid var(--line);
+    box-shadow:var(--shadow); display:grid; place-items:center; opacity:0; transition:opacity .2s ease;
+    font-size:16px; color:var(--work);}
+  .pullball span{display:inline-block; transition:transform .1s linear;}
+  .pullball.spin span{animation:spin .7s linear infinite;}
+
   /* ---- toast notifications ---- */
   .toastwrap{position:fixed; top:0; left:0; right:0; display:flex; flex-direction:column; align-items:center;
     gap:8px; padding:calc(14px + env(safe-area-inset-top)) 14px 0; z-index:200; pointer-events:none;}
@@ -331,7 +342,6 @@ const T={
   thisWeek:{he:'· השבוע', en:'· This week'},
   addWorkout:{he:'הוסף אימון ליום זה', en:'Add workout for this day'},
   sendWeek:{he:'שלח שבוע לגרמין', en:'Send week to Garmin'},
-  emptyBig:{he:'אין אימון ליום זה', en:'No workout for this day'},
   emptySub:{he:'בחר סוג אימון והגדר חימום, מקטעים ושחרור', en:'Choose a workout type and set warmup, segments and cooldown'},
   warmup:{he:'חימום', en:'Warmup'},
   cooldown:{he:'שחרור', en:'Cooldown'},
@@ -438,6 +448,25 @@ function setTheme(th){ S.theme=th; store.set('theme',th); render(); }
 const pad=n=>String(n).padStart(2,'0');
 const uid=()=>Math.random().toString(36).slice(2,9);
 function ymd(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+
+/* rest-day flavor: a different fun emoji+caption per day, picked deterministically
+   from the date so it doesn't change on every re-render but still varies day to day */
+const REST_DAYS=[
+  {emoji:'🧖', he:'יום ספא', en:'Spa day'},
+  {emoji:'🛋️', he:'יום ספה', en:'Couch potato day'},
+  {emoji:'😴', he:'יום שינה', en:'Nap day'},
+  {emoji:'🍩', he:'יום דונאט', en:'Donut day'},
+  {emoji:'🎮', he:'יום גיימינג', en:'Gaming day'},
+  {emoji:'🍿', he:'יום נטפליקס', en:'Netflix day'},
+  {emoji:'🧘', he:'יום זן', en:'Zen day'},
+  {emoji:'🦥', he:'יום עצלנות', en:'Sloth day'},
+  {emoji:'☕', he:'יום קפה', en:'Coffee day'},
+  {emoji:'🏖️', he:'יום חוף', en:'Beach day'},
+];
+function restDayFlavor(dateStr){
+  let h=0; for(let i=0;i<dateStr.length;i++) h=(h*31+dateStr.charCodeAt(i))>>>0;
+  return REST_DAYS[h%REST_DAYS.length];
+}
 function mmss(sec){ const m=Math.floor(sec/60), s=sec%60; return m+':'+pad(s); }
 function startOfWeek(offset){ // Sunday-start week
   const t=new Date(); t.setHours(0,0,0,0);
@@ -863,9 +892,13 @@ function render(){
 
 function renderDay(date){
   const ws=dayWorkouts(date);
-  if(!ws.length) return `<div class="empty">
-    <div class="big">${t('emptyBig')}</div>
-    <div>${t('emptySub')}</div></div>`;
+  if(!ws.length){
+    const fun=restDayFlavor(ymd(date));
+    return `<div class="empty">
+      <div class="emoji">${fun.emoji}</div>
+      <div class="big">${S.lang==='he'?fun.he:fun.en}</div>
+      <div>${t('emptySub')}</div></div>`;
+  }
   return ws.map((w,idx)=>renderCard(w,idx)).join('');
 }
 
@@ -1395,6 +1428,69 @@ function attachSwipe(){
     x0=y0=null;
   },{passive:true});
 }
+
+/* ---- pull to refresh (re-syncs plan/profile from the cloud) ---- */
+async function pullRefreshAction(){
+  if(!AUTH.session) return;
+  try{
+    await loadCloudData(AUTH.session.user.id);
+    await autoCheckCompleted();
+  }catch(e){ /* best-effort */ }
+  render();
+}
+function initPullToRefresh(){
+  const THRESH=64, MAX=100;
+  const el=document.createElement('div'); el.id='pullwrap'; el.className='pullwrap';
+  el.innerHTML='<div class="pullball" id="pullball"><span id="pullicon">⟳</span></div>';
+  document.body.appendChild(el);
+  const ball=document.getElementById('pullball');
+  const icon=document.getElementById('pullicon');
+
+  let y0=null, ready=false, active=false;
+
+  document.addEventListener('touchstart', e=>{
+    if(active) return;
+    if((document.scrollingElement.scrollTop||0)>0) return;
+    if(document.querySelector('.drawerscrim, .scrim.on')) return;
+    y0=e.touches[0].clientY;
+  }, {passive:true});
+
+  document.addEventListener('touchmove', e=>{
+    if(y0==null || active) return;
+    const dy=e.touches[0].clientY-y0;
+    if(dy<=0 || (document.scrollingElement.scrollTop||0)>0){ y0=null; return; }
+    e.preventDefault();
+    const dist=Math.min(MAX, dy*0.5);
+    el.style.transition='none'; ball.style.transition='none';
+    el.style.transform=`translateY(${dist-60}px)`;
+    ball.style.opacity=String(Math.min(1, dist/THRESH));
+    icon.style.transform=`rotate(${dy*1.2}deg)`;
+    ready=dist>=THRESH*0.85;
+  }, {passive:false});
+
+  document.addEventListener('touchend', async ()=>{
+    if(y0==null) return;
+    y0=null;
+    el.style.transition=''; ball.style.transition='';
+    if(ready){
+      active=true;
+      el.style.transform='translateY(4px)';
+      ball.style.opacity='1';
+      ball.classList.add('spin');
+      try{ await pullRefreshAction(); }
+      finally{
+        ball.classList.remove('spin');
+        el.style.transform='translateY(-60px)';
+        ball.style.opacity='0';
+        active=false;
+      }
+    } else {
+      el.style.transform='translateY(-60px)';
+      ball.style.opacity='0';
+    }
+  }, {passive:true});
+}
+initPullToRefresh();
 
 render();
 </script>
