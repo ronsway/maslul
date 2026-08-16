@@ -84,6 +84,15 @@ cooldown -> `create_cooldown_step`.
 
 ## Deploy
 
+Normal workflow: run `deploy.bat` from the repo root (optionally with a message,
+e.g. `deploy.bat fix send button`). It bumps `VERSION` (patch), regenerates
+`web/version.js` and `web/sw.js`'s cache name via `scripts/bump_version.js` (so
+installed PWAs actually pick up the new build instead of serving a stale cached
+one), deploys `server/` and `web/` to Vercel production, then commits and pushes
+the version bump. The current version is shown at the bottom of the in-app
+Settings drawer - useful for confirming a device is actually running the latest
+build rather than a stale cached PWA. See `CHANGELOG.md` for the deploy history.
+
 Backend (Vercel, from the `server/` folder as project root):
 1. Push repo to GitHub, or use the Vercel CLI / dashboard.
 2. Set root directory to `server/`. Add `GARTH_TOKEN` (and optionally `API_SECRET`).
