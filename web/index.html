@@ -212,6 +212,25 @@
   .stepper .v{flex:1; text-align:center; font-family:'JetBrains Mono'; font-weight:700; font-size:17px;}
   .stepper button:active{background:var(--panel2);}
 
+  .fieldhead{display:flex; align-items:center; justify-content:space-between; margin-bottom:7px;}
+  .fieldhead label{margin:0;}
+  .swtch{position:relative; width:42px; height:25px; border-radius:14px; background:var(--panel2);
+    border:1px solid var(--line); flex:none;}
+  .swtch .knob{position:absolute; top:2px; inset-inline-start:2px; width:19px; height:19px; border-radius:50%;
+    background:var(--muted); transition:inset-inline-start .15s ease, background .15s ease;}
+  .swtch.on{background:var(--work); border-color:var(--work);}
+  .swtch.on .knob{inset-inline-start:19px; background:#1a0d09;}
+
+  .distchips{display:flex; gap:6px; margin-bottom:8px;}
+  .distchips button{flex:1; padding:9px 0; border-radius:9px; background:var(--panel); border:1px solid var(--line);
+    font-family:'JetBrains Mono'; font-weight:700; font-size:13px; color:var(--txt);}
+  .distchips button.on{border-color:var(--work); background:var(--type-on-bg);}
+  .unittoggle{max-width:130px; margin-bottom:8px;}
+  .exactinput{margin-top:6px;}
+  .exactinput input{width:100%; background:none; border:none; color:var(--muted); font-size:12px;
+    text-align:center; padding:2px;}
+  .exactinput input:focus{outline:none; color:var(--txt);}
+
   .blk{background:var(--panel); border:1px solid var(--line); border-radius:15px; padding:13px; margin-bottom:11px;}
   .blk .bh{display:flex; align-items:center; justify-content:space-between; margin-bottom:11px;}
   .blk .bt{font-family:'Rubik'; font-weight:700; font-size:14px;}
@@ -521,8 +540,8 @@ function defaultWorkout(type,date){
     work:{mode:'time', value:45}, recovery:{mode:'time', value:90}}];
   if(type==='fartlek') base.blocks=[{kind:'repeat', reps:6,
     work:{mode:'time', value:60}, recovery:{mode:'time', value:60}}];
-  if(type==='volume'){ base.warmupSec=300; base.cooldownSec=300;
-    base.blocks=[{kind:'steady', mode:'time', value:2700}]; }
+  if(type==='volume'){ base.warmupSec=0; base.cooldownSec=0;
+    base.blocks=[{kind:'steady', mode:'dist', value:8000}]; }
   if(type==='recovery'){ base.warmupSec=300; base.cooldownSec=300;
     base.blocks=[{kind:'steady', mode:'time', value:1200}]; }
   if(type==='race'){ base.warmupSec=900; base.cooldownSec=0;
@@ -1084,13 +1103,21 @@ function editorSheet(){
     <div class="field"><label>${t('workoutName')}</label>
       <input value="${d.name}" oninput="d_name(this.value)"></div>
 
-    <div class="field"><label>${t('warmupMin')}</label>${stepperHTML('warm', Math.round(d.warmupSec/60))}</div>
+    <div class="field">
+      <div class="fieldhead"><label>${t('warmupMin')}</label>
+        <div class="swtch ${d.warmupSec>0?'on':''}" onclick="toggleWarmCool('warm')"><span class="knob"></span></div></div>
+      ${d.warmupSec>0? stepperHTML('warm', Math.round(d.warmupSec/60)) : ''}
+    </div>
 
     <div class="minilbl" style="margin:4px 0 8px">${t('mainSegments')}</div>
     ${d.blocks.map((b,i)=>blockEditor(b,i)).join('')}
     <button class="addblk" onclick="addBlock()">${t('addSegment')}</button>
 
-    <div class="field"><label>${t('cooldownMin')}</label>${stepperHTML('cool', Math.round(d.cooldownSec/60))}</div>
+    <div class="field">
+      <div class="fieldhead"><label>${t('cooldownMin')}</label>
+        <div class="swtch ${d.cooldownSec>0?'on':''}" onclick="toggleWarmCool('cool')"><span class="knob"></span></div></div>
+      ${d.cooldownSec>0? stepperHTML('cool', Math.round(d.cooldownSec/60)) : ''}
+    </div>
 
     <button class="primary disp" onclick="saveWorkout()">${t('saveWorkout')}</button>
     <button class="ghost" onclick="closeSheet()">${t('cancel')}</button>
@@ -1117,15 +1144,41 @@ function blockEditor(b,i){
       <div><div class="minilbl">${t('recovery')}</div>${segEditor(b.recovery,i,'recovery')}</div>
     </div></div>`;
 }
+const DIST_CHIPS_KM=[3,5,8,10,15,20];
 function segEditor(seg,i,which){
   const isTime=seg.mode==='time';
-  const val=isTime? fmtTimeInput(seg.value) : fmtDistInput(seg.value);
-  return `<div class="toggle" style="margin-bottom:7px">
+  const modeToggle=`<div class="toggle" style="margin-bottom:7px">
       <button class="${isTime?'on':''}" onclick="segMode(${i},'${which}','time')">${t('timeMode')}</button>
       <button class="${!isTime?'on':''}" onclick="segMode(${i},'${which}','dist')">${t('distMode')}</button>
+    </div>`;
+  if(isTime){
+    return modeToggle+`
+      <div class="stepper">
+        <button onclick="segTimeStep(${i},'${which}',-1)">−</button>
+        <div class="v mono">${fmtTimeInput(seg.value)}</div>
+        <button onclick="segTimeStep(${i},'${which}',1)">+</button>
+      </div>
+      <div class="exactinput"><input class="mono" dir="ltr" value="${fmtTimeInput(seg.value)}" placeholder="${t('timeHint')}"
+        oninput="segVal(${i},'${which}',this.value)"></div>`;
+  }
+  const unit=seg.unit||(seg.value>=1000?'km':'m');
+  const dispVal=unit==='km'? Math.round(seg.value/100)/10 : seg.value;
+  const chips=which==='steady'? `<div class="distchips">
+      ${DIST_CHIPS_KM.map(km=>`<button class="${unit==='km'&&seg.value===km*1000?'on':''}" onclick="segDistPick(${i},'${which}',${km})">${km}</button>`).join('')}
+    </div>` : '';
+  return modeToggle+`
+    <div class="toggle unittoggle">
+      <button class="${unit==='km'?'on':''}" onclick="segUnit(${i},'${which}','km')">${t('kmShort')}</button>
+      <button class="${unit==='m'?'on':''}" onclick="segUnit(${i},'${which}','m')">${t('meterShort')}</button>
     </div>
-    <input class="mono" value="${val}" placeholder="${isTime?t('timeHint'):t('distHint')}"
-      oninput="segVal(${i},'${which}',this.value)">`;
+    ${chips}
+    <div class="stepper">
+      <button onclick="segDistStep(${i},'${which}',-1)">−</button>
+      <div class="v mono">${dispVal} ${unit==='km'?t('kmShort'):t('meterShort')}</div>
+      <button onclick="segDistStep(${i},'${which}',1)">+</button>
+    </div>
+    <div class="exactinput"><input class="mono" dir="ltr" value="${fmtDistInput(seg.value)}" placeholder="${t('distHint')}"
+      oninput="segVal(${i},'${which}',this.value)"></div>`;
 }
 
 /* send sheet */
@@ -1416,15 +1469,33 @@ function bump(key,dir){ const d=S.sheet.draft;
   else if(key==='cool') d.cooldownSec=Math.max(0,d.cooldownSec+dir*60);
   else if(key.startsWith('reps')){ const i=+key.slice(4); d.blocks[i].reps=Math.max(1,d.blocks[i].reps+dir); }
   render(); }
+function toggleWarmCool(key){
+  const d=S.sheet.draft; const field=key==='warm'?'warmupSec':'cooldownSec';
+  if(d[field]>0){ d['_last_'+field]=d[field]; d[field]=0; }
+  else d[field]=d['_last_'+field]||300;
+  render();
+}
 function addBlock(){ S.sheet.draft.blocks.push({kind:'repeat', reps:4,
   work:{mode:'time',value:120}, recovery:{mode:'time',value:90}}); render(); }
 function rmBlock(i){ S.sheet.draft.blocks.splice(i,1); render(); }
 function segMode(i,which,mode){ const b=S.sheet.draft.blocks[i];
   const seg = which==='steady'? b : b[which]; seg.mode=mode;
-  if(mode==='dist' && seg.value<50) seg.value=400; render(); }
+  if(mode==='dist' && seg.value<50) seg.value=which==='steady'?5000:400; render(); }
 function segVal(i,which,v){ const b=S.sheet.draft.blocks[i];
   const seg = which==='steady'? b : b[which];
   seg.value = seg.mode==='time'? parseTimeInput(v) : parseDistInput(v); }
+function segUnit(i,which,unit){ const b=S.sheet.draft.blocks[i];
+  const seg = which==='steady'? b : b[which]; seg.unit=unit; render(); }
+function segDistPick(i,which,km){ const b=S.sheet.draft.blocks[i];
+  const seg = which==='steady'? b : b[which]; seg.value=km*1000; seg.unit='km'; render(); }
+function segDistStep(i,which,dir){ const b=S.sheet.draft.blocks[i];
+  const seg = which==='steady'? b : b[which];
+  const unit=seg.unit||(seg.value>=1000?'km':'m'); const step=unit==='km'?500:50;
+  seg.value=Math.max(step, seg.value+dir*step); render(); }
+function segTimeStep(i,which,dir){ const b=S.sheet.draft.blocks[i];
+  const seg = which==='steady'? b : b[which];
+  const step=which==='steady'?60:15;
+  seg.value=Math.max(step, seg.value+dir*step); render(); }
 function saveWorkout(){
   const date=ymd(weekDates(S.offset)[S.sel]);
   if(!S.plan[date]) S.plan[date]=[];
