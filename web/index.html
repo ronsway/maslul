@@ -260,6 +260,9 @@
   .navrow .nrt{font-family:'Rubik'; font-weight:700; font-size:14px;}
   .navrow .nrs{color:var(--muted); font-size:12px; margin-top:2px;}
   .navrow .nrarrow{color:var(--muted); font-size:16px; flex:none; margin-inline-start:10px;}
+  .navrow.featured{padding:16px 15px;}
+  .navrow.featured .nrt{font-size:15.5px;}
+  .navrow.featured .nrs{font-size:13px; line-height:1.4; white-space:normal;}
   .backrow{display:flex; align-items:center; gap:8px; margin-bottom:14px;}
   .backrow button{color:var(--muted); font-weight:700; font-size:13px; display:flex; align-items:center; gap:4px;}
 
@@ -269,12 +272,13 @@
   .racecountdown{font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;
     background:var(--type-on-bg); color:var(--work); flex:none; border:1px solid var(--line); white-space:nowrap;}
   .racecountdown.past{color:var(--muted);}
-  .racebottom{display:flex; align-items:center; justify-content:space-between; gap:10px;}
-  .racemeta{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12.5px;}
+  .racebottom{display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;}
+  .racemeta{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12.5px; flex-wrap:wrap;}
   .racedist{background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:2px 8px; font-weight:700; color:var(--txt);}
-  .racerm{color:#ff7a68; font-size:12.5px; font-weight:700; flex:none;}
-  .raceactions{display:flex; align-items:center; gap:14px; flex:none;}
-  .racesearch{color:var(--easy); font-size:12.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px; text-decoration:none;}
+  .racerm{color:#ff7a68; font-size:12px; font-weight:700; flex:none;}
+  .raceactions{display:flex; align-items:center; gap:8px; flex:none;}
+  .raceiconbtn{width:26px; height:26px; border-radius:50%; background:var(--panel2); border:1px solid var(--line);
+    color:var(--easy); display:inline-flex; align-items:center; justify-content:center; flex:none; text-decoration:none;}
 
   .addblk{width:100%; padding:11px; border-radius:12px; border:1px dashed var(--line);
     color:var(--muted); font-weight:700; font-size:13px; margin-bottom:16px;}
@@ -533,6 +537,11 @@ const T={
   raceDistanceLabel:{he:'מרחק המרוץ', en:'Race distance'},
   raceIncludeWarmup:{he:'כלול חימום כאימון נפרד', en:'Include a separate warmup'},
   raceIncludeCooldown:{he:'כלול קירור כאימון נפרד', en:'Include a separate cooldown'},
+  raceTargetLabel:{he:'זמן יעד (דק׳)', en:'Target time (min)'},
+  splitStrategyLabel:{he:'אסטרטגיית פיצול', en:'Split strategy'},
+  negativeSplit:{he:'שלילי', en:'Negative'},
+  evenSplit:{he:'אחיד', en:'Even'},
+  positiveSplit:{he:'חיובי', en:'Positive'},
   raceToday:{he:'היום!', en:'Today!'},
   racePast:{he:'עבר', en:'Past'},
   daysWord:{he:'ימים', en:'days'},
@@ -636,7 +645,8 @@ function defaultWorkout(type,date){
   if(type==='recovery'){ base.warmupSec=300; base.cooldownSec=300;
     base.blocks=[{kind:'steady', mode:'time', value:1200}]; }
   if(type==='race'){ base.warmupSec=0; base.cooldownSec=0; // a race is always its own independent workout -
-    base.blocks=[{kind:'steady', mode:'dist', value:5000}]; } // warmup/cooldown are separate entries, see raceDistSection()
+    base.raceDistM=5000; base.raceTargetSec=null; base.raceSplit='negative'; // warmup/cooldown are separate entries, see raceDistSection()
+    base.blocks=[{kind:'steady', mode:'dist', value:5000}]; }
   return base;
 }
 /* per-km distance blocks for the race itself, with a mild negative-split pace target
@@ -731,7 +741,7 @@ function flattenSteps(w){
     if(b.kind==='repeat'){ for(let i=0;i<b.reps;i++){
       out.push({intensity:'work', secs:stepSecs(b.work.mode,b.work.value,'work')});
       out.push({intensity:'recovery', secs:stepSecs(b.recovery.mode,b.recovery.value,'recovery')});
-    }} else out.push({intensity:'easy', secs:stepSecs(b.mode,b.value,'easy')});
+    }} else out.push({intensity:'easy', secs: b.mode==='dist'&&b.pace? Math.round(b.value/1000*b.pace) : stepSecs(b.mode,b.value,'easy')});
   });
   if(w.cooldownSec) out.push({intensity:'warm', secs:w.cooldownSec});
   return out;
@@ -758,6 +768,32 @@ function parseDistInput(v){
 function fmtDistInput(m){
   if(m>=1000) return (Math.round(m/100)/10)+'km';
   return String(m);
+}
+/* a bare number here means minutes (the field is "target time in minutes"),
+   unlike parseTimeInput's bare-number-means-seconds used for short segments */
+function parseTargetTime(v){
+  v=(v||'').trim();
+  if(v.includes(':')) return parseTimeInput(v);
+  return Math.max(0, Math.round((parseFloat(v)||0)*60));
+}
+/* +-4% pace swing tip-to-tip across the race, spread evenly by km */
+function splitFactor(strategy, t){
+  if(strategy==='even') return 0;
+  const grad=0.04;
+  return strategy==='negative'? grad*(1-2*t) : -grad*(1-2*t);
+}
+function buildTargetSplits(km, targetSec, strategy){
+  const full=Math.floor(km);
+  const rem=Math.round((km-full)*1000);
+  const segs=[]; for(let i=0;i<full;i++) segs.push(1000);
+  if(rem>10) segs.push(rem);
+  const n=segs.length;
+  const avgPaceSecPerKm=targetSec/km;
+  return segs.map((meters,i)=>{
+    const t=n>1? i/(n-1) : 0.5;
+    const pace=Math.round(avgPaceSecPerKm*(1+splitFactor(strategy,t)));
+    return {kind:'steady', mode:'dist', value:meters, pace};
+  });
 }
 
 /* ============ state ============ */
@@ -1057,11 +1093,13 @@ function renderCard(w,idx){
       <span class="nrarrow">${drillArrow()}</span>
     </button>` : ''}
     <div class="steps">
-      <div class="step"><span class="pip" style="background:var(--warm)"></span>
-        <span class="lbl">${t('warmup')}</span><span class="val">${mmss(w.warmupSec)}</span></div>
+      ${w.raceAux? `<div class="step"><span class="pip" style="background:var(--warm)"></span>
+        <span class="lbl">${w.raceAux==='warm'?t('warmup'):t('cooldown')}</span><span class="val">${mmss(w.blocks[0].value)}</span></div>`
+      : `${w.warmupSec>0? `<div class="step"><span class="pip" style="background:var(--warm)"></span>
+        <span class="lbl">${t('warmup')}</span><span class="val">${mmss(w.warmupSec)}</span></div>` : ''}
       ${w.blocks.map((b,i)=>renderBlockView(b,i,w.blocks.length)).join('')}
-      <div class="step"><span class="pip" style="background:var(--warm)"></span>
-        <span class="lbl">${t('cooldown')}</span><span class="val">${mmss(w.cooldownSec)}</span></div>
+      ${w.cooldownSec>0? `<div class="step"><span class="pip" style="background:var(--warm)"></span>
+        <span class="lbl">${t('cooldown')}</span><span class="val">${mmss(w.cooldownSec)}</span></div>` : ''}`}
     </div>
     <div class="cardacts">
       <button class="donebtn ${w.done?'on':''}" onclick="toggleDone(${idx})">${w.done?'✓ '+t('doneWord'):t('markDone')}</button>
@@ -1247,11 +1285,11 @@ function previewCard(dateStr,w){
     <div class="n mono" style="margin-bottom:8px">${DAYS[S.lang][d.getDay()]} ${d.getDate()} ${MONTHS_I18N[S.lang][d.getMonth()]}</div>
     <div class="profile">${bar}</div>
     <div class="steps">
-      <div class="step"><span class="pip" style="background:var(--warm)"></span>
-        <span class="lbl">${t('warmup')}</span><span class="val">${mmss(w.warmupSec)}</span></div>
+      ${w.warmupSec>0? `<div class="step"><span class="pip" style="background:var(--warm)"></span>
+        <span class="lbl">${t('warmup')}</span><span class="val">${mmss(w.warmupSec)}</span></div>` : ''}
       ${w.blocks.map((b,i)=>renderBlockView(b,i,w.blocks.length)).join('')}
-      <div class="step"><span class="pip" style="background:var(--warm)"></span>
-        <span class="lbl">${t('cooldown')}</span><span class="val">${mmss(w.cooldownSec)}</span></div>
+      ${w.cooldownSec>0? `<div class="step"><span class="pip" style="background:var(--warm)"></span>
+        <span class="lbl">${t('cooldown')}</span><span class="val">${mmss(w.cooldownSec)}</span></div>` : ''}
     </div>
   </div>`;
 }
@@ -1336,23 +1374,39 @@ function raceChipLabel(km){
   return km+' '+t('kmShort');
 }
 function raceDistSection(d){
-  const seg=d.blocks[0]||{mode:'dist', value:5000};
-  const dispVal=Math.round(seg.value/100)/10;
+  // race workouts auto-generated via Settings > Races (raceWorkouts()) don't carry
+  // raceDistM - back-fill it from the existing blocks so editing one here doesn't break
+  if(d.raceDistM==null) d.raceDistM=Math.round(d.blocks.reduce((a,b)=>a+(b.mode==='dist'?b.value:0),0))||5000;
+  const dispVal=Math.round(d.raceDistM/100)/10;
   const isNew=S.sheet.editIndex==null;
   const rw=S.sheet.raceWarmup||{on:false,min:15}, rc=S.sheet.raceCooldown||{on:false,min:15};
+  const strat=d.raceSplit||'negative';
   return `<div class="minilbl" style="margin:4px 0 8px">${t('raceDistanceLabel')}</div>
     <div class="distchips">
-      ${RACE_DIST_CHIPS_KM.map(km=>`<button class="${seg.value===Math.round(km*1000)?'on':''}" onclick="segDistPick(0,'steady',${km})">${raceChipLabel(km)}</button>`).join('')}
+      ${RACE_DIST_CHIPS_KM.map(km=>`<button class="${d.raceDistM===Math.round(km*1000)?'on':''}" onclick="raceDistPick(${km})">${raceChipLabel(km)}</button>`).join('')}
     </div>
     <div class="stepper">
-      <button onclick="segDistStep(0,'steady',-1)">−</button>
+      <button onclick="raceDistStep(-1)">−</button>
       <div class="v mono">${dispVal} ${t('kmShort')}</div>
-      <button onclick="segDistStep(0,'steady',1)">+</button>
+      <button onclick="raceDistStep(1)">+</button>
     </div>
-    <div class="exactinput"><input class="mono" dir="ltr" value="${fmtDistInput(seg.value)}" placeholder="${t('distHint')}"
-      oninput="segVal(0,'steady',this.value)"></div>
+    <div class="exactinput"><input class="mono" dir="ltr" value="${fmtDistInput(d.raceDistM)}" placeholder="${t('distHint')}"
+      oninput="raceDistInput(this.value)"></div>
+
+    <div class="field" style="margin-top:15px">
+      <label>${t('raceTargetLabel')}</label>
+      <input class="mono" dir="ltr" value="${d.raceTargetSec?mmss(d.raceTargetSec):''}" placeholder="50:00"
+        oninput="raceTargetInput(this.value)">
+    </div>
+    ${d.raceTargetSec? `
+    <div class="minilbl" style="margin-bottom:8px">${t('splitStrategyLabel')}</div>
+    <div class="toggle" style="margin-bottom:15px">
+      <button class="${strat==='negative'?'on':''}" onclick="setRaceSplit('negative')">${t('negativeSplit')}</button>
+      <button class="${strat==='even'?'on':''}" onclick="setRaceSplit('even')">${t('evenSplit')}</button>
+      <button class="${strat==='positive'?'on':''}" onclick="setRaceSplit('positive')">${t('positiveSplit')}</button>
+    </div>` : ''}
     ${isNew? `
-    <div class="field" style="margin-top:15px; margin-bottom:11px">
+    <div class="field" style="margin-bottom:11px">
       <div class="fieldhead"><label>${t('raceIncludeWarmup')}</label>
         <div class="swtch ${rw.on?'on':''}" onclick="toggleRaceWarmup()"><span class="knob"></span></div></div>
       ${rw.on? stepperHTML('raceWarm', rw.min) : ''}
@@ -1363,6 +1417,17 @@ function raceDistSection(d){
       ${rc.on? stepperHTML('raceCool', rc.min) : ''}
     </div>` : ''}`;
 }
+function regenRaceBlocks(d){
+  const km=d.raceDistM/1000;
+  d.blocks = d.raceTargetSec? buildTargetSplits(km, d.raceTargetSec, d.raceSplit||'negative')
+    : [{kind:'steady', mode:'dist', value:d.raceDistM}];
+}
+function raceDistPick(km){ const d=S.sheet.draft; d.raceDistM=Math.round(km*1000); regenRaceBlocks(d); render(); }
+function raceDistStep(dir){ const d=S.sheet.draft; const step=d.raceDistM>=1000?500:50;
+  d.raceDistM=Math.max(step, d.raceDistM+dir*step); regenRaceBlocks(d); render(); }
+function raceDistInput(v){ const d=S.sheet.draft; d.raceDistM=parseDistInput(v); regenRaceBlocks(d); render(); }
+function raceTargetInput(v){ const d=S.sheet.draft; d.raceTargetSec=parseTargetTime(v)||null; regenRaceBlocks(d); render(); }
+function setRaceSplit(k){ const d=S.sheet.draft; d.raceSplit=k; regenRaceBlocks(d); render(); }
 function segEditor(seg,i,which){
   const isTime=seg.mode==='time';
   const modeToggle=`<div class="toggle" style="margin-bottom:7px">
@@ -1468,9 +1533,11 @@ function profileSheet(){
           <div class="nrs">${zonesSummary(p)}</div></div>
         <span class="nrarrow">${drillArrow()}</span>
       </button>
-      <button class="navrow" style="margin-bottom:0" onclick="openRaces()">
-        <div><div class="nrt">${t('racesTitle')}</div>
-          <div class="nrs">${races.length? races.length+' '+t('racesCount') : t('noRaces')}</div></div>
+      <button class="navrow featured" style="margin-bottom:0" onclick="openRaces()">
+        <div style="min-width:0">
+          <div class="nrt">${t('racesTitle')}</div>
+          <div class="nrs">${raceHubSummary(races)}</div>
+        </div>
         <span class="nrarrow">${drillArrow()}</span>
       </button>
     </div>
@@ -1512,6 +1579,15 @@ function zonesSummary(p){
 }
 function drillArrow(){ return S.lang==='he'?'‹':'›'; }
 function backArrow(){ return S.lang==='he'?'›':'‹'; }
+/* races are a "major" thing per the owner, unlike training zones - the hub row
+   shows the next upcoming race's name + countdown instead of a bare count */
+function raceHubSummary(sortedRaces){
+  if(!sortedRaces.length) return t('noRaces');
+  const next=sortedRaces.find(r=>daysUntil(r.date)>=0) || sortedRaces[0];
+  const dLeft=daysUntil(next.date);
+  const when=dLeft>0? '+'+dLeft+' '+t('daysWord') : (dLeft===0? t('raceToday') : t('racePast'));
+  return next.name+' · '+when;
+}
 
 /* training-zones sub-sheet, drilled into from the settings hub - split out
    because these numbers get set once and rarely revisited, unlike profile/prefs */
@@ -1558,13 +1634,11 @@ function racesSheet(){
               ${r.km? `<span class="racedist mono">${r.km} ${t('kmShort')}</span>` : ''}
             </div>
             <div class="raceactions">
-              <a class="racesearch" target="_blank" rel="noopener" href="https://www.google.com/search?q=${encodeURIComponent(r.name+' '+r.date.slice(0,4))}">
+              <a class="raceiconbtn" target="_blank" rel="noopener" href="https://www.google.com/search?q=${encodeURIComponent(r.name+' '+r.date.slice(0,4))}" title="${t('searchRaceInfo')}" aria-label="${t('searchRaceInfo')}">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-                ${t('searchRaceInfo')}
               </a>
-              <button class="racesearch" onclick="editRace('${r.id}')">
+              <button class="raceiconbtn" onclick="editRace('${r.id}')" title="${t('edit')}" aria-label="${t('edit')}">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                ${t('edit')}
               </button>
               <button class="racerm" onclick="delRace('${r.id}')">${t('remove')}</button>
             </div>
@@ -1870,7 +1944,10 @@ function segTimeStep(i,which,dir){ const b=S.sheet.draft.blocks[i];
   const step=which==='steady'?60:15;
   seg.value=Math.max(step, seg.value+dir*step); render(); }
 function raceAuxWorkout(kind, minutes){ // kind: 'warm' or 'cool' - a plain independent easy-effort entry
-  return {id:uid(), type:'volume', name:kind==='warm'?t('warmup'):t('cooldown'),
+  // raceAux marks it for a simplified one-line card (see renderCard) instead of
+  // the generic "Continuous run" block label, which would be a confusing way to
+  // describe what is itself the warmup or cooldown
+  return {id:uid(), type:'volume', name:kind==='warm'?t('warmup'):t('cooldown'), raceAux:kind,
     warmupSec:0, cooldownSec:0, done:false, blocks:[{kind:'steady', mode:'time', value:minutes*60}]};
 }
 function saveWorkout(){
