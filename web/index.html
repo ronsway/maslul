@@ -526,12 +526,13 @@ const T={
   raceDate:{he:'תאריך', en:'Date'},
   raceDist:{he:'מרחק (ק״מ)', en:'Distance (km)'},
   addRace:{he:'+ הוסף תחרות', en:'+ Add race'},
+  updateRace:{he:'עדכן תחרות', en:'Update race'},
   noRaces:{he:'אין תחרויות מוגדרות', en:'No races added yet'},
   raceNeedsFields:{he:'הזן תאריך ושם תחרות', en:'Enter a date and race name'},
   searchRaceInfo:{he:'חפש מידע', en:'Search info'},
   raceDistanceLabel:{he:'מרחק המרוץ', en:'Race distance'},
-  halfMarathonWord:{he:'חצי מרתון', en:'Half'},
-  marathonWord:{he:'מרתון', en:'Full'},
+  raceIncludeWarmup:{he:'כלול חימום כאימון נפרד', en:'Include a separate warmup'},
+  raceIncludeCooldown:{he:'כלול קירור כאימון נפרד', en:'Include a separate cooldown'},
   raceToday:{he:'היום!', en:'Today!'},
   racePast:{he:'עבר', en:'Past'},
   daysWord:{he:'ימים', en:'days'},
@@ -634,8 +635,8 @@ function defaultWorkout(type,date){
     base.blocks=[{kind:'steady', mode:'dist', value:8000}]; }
   if(type==='recovery'){ base.warmupSec=300; base.cooldownSec=300;
     base.blocks=[{kind:'steady', mode:'time', value:1200}]; }
-  if(type==='race'){ base.warmupSec=900; base.cooldownSec=0;
-    base.blocks=[{kind:'steady', mode:'dist', value:5000}]; }
+  if(type==='race'){ base.warmupSec=0; base.cooldownSec=0; // a race is always its own independent workout -
+    base.blocks=[{kind:'steady', mode:'dist', value:5000}]; } // warmup/cooldown are separate entries, see raceDistSection()
   return base;
 }
 /* per-km distance blocks for the race itself, with a mild negative-split pace target
@@ -1330,13 +1331,15 @@ const DIST_CHIPS_KM=[3,5,8,10,15,20];
    distances instead of the generic training-run chip set. */
 const RACE_DIST_CHIPS_KM=[5,10,15,21.1,42.2];
 function raceChipLabel(km){
-  if(km===21.1) return t('halfMarathonWord');
-  if(km===42.2) return t('marathonWord');
+  if(km===21.1) return 'HM';
+  if(km===42.2) return 'M';
   return km+' '+t('kmShort');
 }
 function raceDistSection(d){
   const seg=d.blocks[0]||{mode:'dist', value:5000};
   const dispVal=Math.round(seg.value/100)/10;
+  const isNew=S.sheet.editIndex==null;
+  const rw=S.sheet.raceWarmup||{on:false,min:15}, rc=S.sheet.raceCooldown||{on:false,min:15};
   return `<div class="minilbl" style="margin:4px 0 8px">${t('raceDistanceLabel')}</div>
     <div class="distchips">
       ${RACE_DIST_CHIPS_KM.map(km=>`<button class="${seg.value===Math.round(km*1000)?'on':''}" onclick="segDistPick(0,'steady',${km})">${raceChipLabel(km)}</button>`).join('')}
@@ -1347,7 +1350,18 @@ function raceDistSection(d){
       <button onclick="segDistStep(0,'steady',1)">+</button>
     </div>
     <div class="exactinput"><input class="mono" dir="ltr" value="${fmtDistInput(seg.value)}" placeholder="${t('distHint')}"
-      oninput="segVal(0,'steady',this.value)"></div>`;
+      oninput="segVal(0,'steady',this.value)"></div>
+    ${isNew? `
+    <div class="field" style="margin-top:15px; margin-bottom:11px">
+      <div class="fieldhead"><label>${t('raceIncludeWarmup')}</label>
+        <div class="swtch ${rw.on?'on':''}" onclick="toggleRaceWarmup()"><span class="knob"></span></div></div>
+      ${rw.on? stepperHTML('raceWarm', rw.min) : ''}
+    </div>
+    <div class="field">
+      <div class="fieldhead"><label>${t('raceIncludeCooldown')}</label>
+        <div class="swtch ${rc.on?'on':''}" onclick="toggleRaceCooldown()"><span class="knob"></span></div></div>
+      ${rc.on? stepperHTML('raceCool', rc.min) : ''}
+    </div>` : ''}`;
 }
 function segEditor(seg,i,which){
   const isTime=seg.mode==='time';
@@ -1548,18 +1562,24 @@ function racesSheet(){
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
                 ${t('searchRaceInfo')}
               </a>
+              <button class="racesearch" onclick="editRace('${r.id}')">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                ${t('edit')}
+              </button>
               <button class="racerm" onclick="delRace('${r.id}')">${t('remove')}</button>
             </div>
           </div>
         </div>`;
       }).join('')
       : `<div class="note" style="margin-bottom:10px">${t('noRaces')}</div>`}
+    <div class="minilbl" style="margin-bottom:8px">${S.sheet.editingRaceId? t('updateRace') : t('addRace')}</div>
     <div class="field"><label>${t('raceName')}</label><input value="${rd.name}" oninput="raceDraftField('name',this.value)"></div>
     <div class="row2">
       <div class="field"><label>${t('raceDate')}</label><input class="mono" dir="ltr" type="date" value="${rd.date}" oninput="raceDraftField('date',this.value)"></div>
       <div class="field"><label>${t('raceDist')}</label><input class="mono" inputmode="decimal" value="${rd.km}" oninput="raceDraftField('km',this.value)"></div>
     </div>
-    <button class="addblk" style="margin-bottom:0" onclick="addRace()">${t('addRace')}</button>
+    <button class="addblk" style="margin-bottom:0" onclick="addRace()">${S.sheet.editingRaceId? t('updateRace') : t('addRace')}</button>
+    ${S.sheet.editingRaceId? `<button class="ghost" style="margin-top:9px" onclick="cancelEditRace()">${t('cancel')}</button>` : ''}
 
     <div class="drawersec">
       <button class="ghost" onclick="backFromRaces()">${t('close')}</button>
@@ -1725,12 +1745,44 @@ function addRace(){
   const d=S.sheet.raceDraft;
   if(!d.date || !d.name){ toast(t('raceNeedsFields')); return; }
   S.profile.races=(S.profile.races||[]);
-  const race={id:uid(), date:d.date, name:d.name, km:parseFloat(d.km)||0};
-  S.profile.races.push(race);
-  try{ syncRaceWorkout(race); }
-  catch(e){ console.error('syncRaceWorkout failed', e); } // race itself is already pushed - still save it below
+  const editingId=S.sheet.editingRaceId;
+  // falls back to a fresh add if editingId doesn't match anything (e.g. the race
+  // was deleted from another device before this edit was saved) instead of
+  // silently no-op'ing the update
+  const old=editingId? S.profile.races.find(r=>r.id===editingId) : null;
+  if(old){
+    // date changed - the old date's auto-generated warm/main/cool entries would
+    // otherwise be orphaned there forever since syncRaceWorkout only touches
+    // the (new) race.date below
+    if(old.date!==d.date && S.plan[old.date]){
+      S.plan[old.date]=S.plan[old.date].filter(w=>w.raceId!==editingId);
+      if(!S.plan[old.date].length) delete S.plan[old.date];
+    }
+    const race={id:editingId, date:d.date, name:d.name, km:parseFloat(d.km)||0};
+    S.profile.races=S.profile.races.map(r=>r.id===editingId? race : r);
+    try{ syncRaceWorkout(race); }
+    catch(e){ console.error('syncRaceWorkout failed', e); }
+  } else {
+    const race={id:uid(), date:d.date, name:d.name, km:parseFloat(d.km)||0};
+    S.profile.races.push(race);
+    try{ syncRaceWorkout(race); }
+    catch(e){ console.error('syncRaceWorkout failed', e); } // race itself is already pushed - still save it below
+  }
+  S.sheet.editingRaceId=null;
   S.sheet.raceDraft={date:'',name:'',km:''};
   save(); render();
+}
+function editRace(id){
+  const race=(S.profile.races||[]).find(r=>r.id===id);
+  if(!race) return;
+  S.sheet.raceDraft={date:race.date, name:race.name, km:race.km?String(race.km):''};
+  S.sheet.editingRaceId=id;
+  render();
+}
+function cancelEditRace(){
+  S.sheet.raceDraft={date:'',name:'',km:''};
+  S.sheet.editingRaceId=null;
+  render();
 }
 function delRace(id){
   const race=(S.profile.races||[]).find(r=>r.id===id);
@@ -1739,6 +1791,7 @@ function delRace(id){
     S.plan[race.date]=S.plan[race.date].filter(w=>w.raceId!==id);
     if(!S.plan[race.date].length) delete S.plan[race.date];
   }
+  if(S.sheet.editingRaceId===id) cancelEditRace();
   save(); render();
 }
 
@@ -1768,7 +1821,12 @@ function applyGeneratedWeek(){
 
 function openEditor(idx){
   const date=weekDates(S.offset)[S.sel];
-  if(idx==null) S.sheet={mode:'edit', editIndex:null, draft:defaultWorkout('intervals',date)};
+  // raceWarmup/raceCooldown are transient editor-only toggle state, not part of
+  // the saved workout - a race is always its own independent workout, so these
+  // just control whether saveWorkout() also creates separate warmup/cooldown
+  // entries alongside it (only offered when creating, not when editing one).
+  if(idx==null) S.sheet={mode:'edit', editIndex:null, draft:defaultWorkout('intervals',date),
+    raceWarmup:{on:true,min:15}, raceCooldown:{on:false,min:15}};
   else S.sheet={mode:'edit', editIndex:idx, draft:JSON.parse(JSON.stringify(dayWorkouts(date)[idx]))};
   render();
 }
@@ -1778,8 +1836,12 @@ function d_name(v){ S.sheet.draft.name=v; }
 function bump(key,dir){ const d=S.sheet.draft;
   if(key==='warm') d.warmupSec=Math.max(0,d.warmupSec+dir*60);
   else if(key==='cool') d.cooldownSec=Math.max(0,d.cooldownSec+dir*60);
+  else if(key==='raceWarm') S.sheet.raceWarmup.min=Math.max(5,S.sheet.raceWarmup.min+dir);
+  else if(key==='raceCool') S.sheet.raceCooldown.min=Math.max(5,S.sheet.raceCooldown.min+dir);
   else if(key.startsWith('reps')){ const i=+key.slice(4); d.blocks[i].reps=Math.max(1,d.blocks[i].reps+dir); }
   render(); }
+function toggleRaceWarmup(){ S.sheet.raceWarmup.on=!S.sheet.raceWarmup.on; render(); }
+function toggleRaceCooldown(){ S.sheet.raceCooldown.on=!S.sheet.raceCooldown.on; render(); }
 function toggleWarmCool(key){
   const d=S.sheet.draft; const field=key==='warm'?'warmupSec':'cooldownSec';
   if(d[field]>0){ d['_last_'+field]=d[field]; d[field]=0; }
@@ -1807,11 +1869,18 @@ function segTimeStep(i,which,dir){ const b=S.sheet.draft.blocks[i];
   const seg = which==='steady'? b : b[which];
   const step=which==='steady'?60:15;
   seg.value=Math.max(step, seg.value+dir*step); render(); }
+function raceAuxWorkout(kind, minutes){ // kind: 'warm' or 'cool' - a plain independent easy-effort entry
+  return {id:uid(), type:'volume', name:kind==='warm'?t('warmup'):t('cooldown'),
+    warmupSec:0, cooldownSec:0, done:false, blocks:[{kind:'steady', mode:'time', value:minutes*60}]};
+}
 function saveWorkout(){
   const date=ymd(weekDates(S.offset)[S.sel]);
   if(!S.plan[date]) S.plan[date]=[];
+  const isNewRace=S.sheet.editIndex==null && S.sheet.draft.type==='race';
+  if(isNewRace && S.sheet.raceWarmup.on) S.plan[date].push(raceAuxWorkout('warm', S.sheet.raceWarmup.min));
   if(S.sheet.editIndex==null) S.plan[date].push(S.sheet.draft);
   else S.plan[date][S.sheet.editIndex]=S.sheet.draft;
+  if(isNewRace && S.sheet.raceCooldown.on) S.plan[date].push(raceAuxWorkout('cool', S.sheet.raceCooldown.min));
   save(); closeSheet();
 }
 function delWorkout(idx){
