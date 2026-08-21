@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.24 - 2026-08-21 15:47 - Race target-time planner fix race card overflow feature races on settings hub
+
 ## v1.0.23 - 2026-08-21 15:37 - Race editing independent warmup/cooldown workouts HM/M chip labels
 
 ## v1.0.22 - 2026-08-21 15:25 - Add Tempo type compact type grid special distance-only Race editor
