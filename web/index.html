@@ -201,11 +201,13 @@
   @keyframes drawerInL{from{transform:translateX(-100%);} to{transform:translateX(0);}}
   @keyframes drawerOutL{from{transform:translateX(0);} to{transform:translateX(-100%);}}
 
-  .types{display:grid; grid-template-columns:repeat(2,1fr); gap:9px; margin-bottom:18px;}
-  .type{border:1px solid var(--line); background:var(--panel); border-radius:14px; padding:13px 12px; text-align:start;}
+  .types{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:18px;}
+  .type{position:relative; border:1px solid var(--line); background:var(--panel); border-radius:12px;
+    padding:13px 6px 10px; text-align:center; overflow:hidden;}
+  .type::before{content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--c);}
   .type.on{border-color:var(--work); background:var(--type-on-bg);}
-  .type .tn{font-family:'Rubik'; font-weight:700; font-size:15px;}
-  .type .td{color:var(--muted); font-size:12px; margin-top:2px;}
+  .type .tn{font-family:'Rubik'; font-weight:700; font-size:12.5px;}
+  .type.race{grid-column:1 / -1;}
 
   .field{margin-bottom:15px;}
   .field label{display:block; font-size:13px; color:var(--muted); font-weight:600; margin-bottom:7px;}
@@ -527,6 +529,9 @@ const T={
   noRaces:{he:'אין תחרויות מוגדרות', en:'No races added yet'},
   raceNeedsFields:{he:'הזן תאריך ושם תחרות', en:'Enter a date and race name'},
   searchRaceInfo:{he:'חפש מידע', en:'Search info'},
+  raceDistanceLabel:{he:'מרחק המרוץ', en:'Race distance'},
+  halfMarathonWord:{he:'חצי מרתון', en:'Half'},
+  marathonWord:{he:'מרתון', en:'Full'},
   raceToday:{he:'היום!', en:'Today!'},
   racePast:{he:'עבר', en:'Past'},
   daysWord:{he:'ימים', en:'days'},
@@ -598,6 +603,7 @@ function weekDates(offset){ const s=startOfWeek(offset); return [...Array(7)].ma
 
 const TYPES={
   intervals:{name:'אינטרוולים', en:'Intervals', desc:'מקטעי מאמץ מהיר עם התאוששות', descEn:'Fast effort segments with recovery', color:'--work'},
+  tempo:{name:'טמפו', en:'Tempo', desc:'ריצה רציפה בקצב סף נוח-קשה', descEn:'Sustained run at threshold pace', color:'--work'},
   hills:{name:'עליות', en:'Hills', desc:'ריצת עליות עם ג׳וגינג ירידה', descEn:'Hill repeats with jog-down recovery', color:'--work'},
   fartlek:{name:'פארטלק', en:'Fartlek', desc:'משחקי קצב, האצות משתנות', descEn:'Speed play, varying surges', color:'--work'},
   volume:{name:'נפח', en:'Volume', desc:'ריצה רציפה בקצב קל', descEn:'Continuous run at an easy pace', color:'--easy'},
@@ -620,6 +626,10 @@ function defaultWorkout(type,date){
     work:{mode:'time', value:45}, recovery:{mode:'time', value:90}}];
   if(type==='fartlek') base.blocks=[{kind:'repeat', reps:6,
     work:{mode:'time', value:60}, recovery:{mode:'time', value:60}}];
+  if(type==='tempo'){ // continuous effort at threshold pace, when the profile has one set
+    const goalPaceSec=S.profile.thrPace? parseTimeInput(S.profile.thrPace) : null;
+    base.blocks=[{kind:'steady', mode:'time', value:1200, pace:goalPaceSec}];
+  }
   if(type==='volume'){ base.warmupSec=0; base.cooldownSec=0;
     base.blocks=[{kind:'steady', mode:'dist', value:8000}]; }
   if(type==='recovery'){ base.warmupSec=300; base.cooldownSec=300;
@@ -819,7 +829,7 @@ function planFactor(phase, weekNum){
   if(phase==='build') f += 0.1;
   return f;
 }
-const QUALITY_TYPES=['intervals','hills','fartlek'];
+const QUALITY_TYPES=['intervals','tempo','hills','fartlek'];
 const EASY_TYPES=['volume','volume','recovery']; // weighted toward volume, recovery for variety
 function qualityCount(n, phase){
   if(n<=0) return 0;
@@ -1260,17 +1270,19 @@ function generatePreviewSheet(){
 
 function editorSheet(){
   const d=S.sheet.draft;
+  const isRace=d.type==='race';
   return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
     <div class="grab"></div>
     <h2 class="disp">${S.sheet.editIndex==null?t('newWorkout'):t('editWorkout')}</h2>
     <div class="types">
-      ${Object.keys(TYPES).map(k=>`<button class="type ${d.type===k?'on':''}" onclick="setType('${k}')">
-        <div class="tn">${typeLabel(k)}</div><div class="td">${typeDesc(k)}</div></button>`).join('')}
+      ${Object.keys(TYPES).map(k=>`<button class="type ${k==='race'?'race':''} ${d.type===k?'on':''}" style="--c:var(${TYPES[k].color})" onclick="setType('${k}')" title="${typeDesc(k)}">
+        <div class="tn">${typeLabel(k)}</div></button>`).join('')}
     </div>
 
     <div class="field"><label>${t('workoutName')}</label>
       <input value="${d.name}" oninput="d_name(this.value)"></div>
 
+    ${isRace? raceDistSection(d) : `
     <div class="field">
       <div class="fieldhead"><label>${t('warmupMin')}</label>
         <div class="swtch ${d.warmupSec>0?'on':''}" onclick="toggleWarmCool('warm')"><span class="knob"></span></div></div>
@@ -1285,7 +1297,7 @@ function editorSheet(){
       <div class="fieldhead"><label>${t('cooldownMin')}</label>
         <div class="swtch ${d.cooldownSec>0?'on':''}" onclick="toggleWarmCool('cool')"><span class="knob"></span></div></div>
       ${d.cooldownSec>0? stepperHTML('cool', Math.round(d.cooldownSec/60)) : ''}
-    </div>
+    </div>`}
 
     <button class="primary disp" onclick="saveWorkout()">${t('saveWorkout')}</button>
     <button class="ghost" onclick="closeSheet()">${t('cancel')}</button>
@@ -1313,6 +1325,30 @@ function blockEditor(b,i){
     </div></div>`;
 }
 const DIST_CHIPS_KM=[3,5,8,10,15,20];
+/* races are always run for a distance, never a duration, so the race editor
+   skips the normal time/distance toggle entirely and offers standard race
+   distances instead of the generic training-run chip set. */
+const RACE_DIST_CHIPS_KM=[5,10,15,21.1,42.2];
+function raceChipLabel(km){
+  if(km===21.1) return t('halfMarathonWord');
+  if(km===42.2) return t('marathonWord');
+  return km+' '+t('kmShort');
+}
+function raceDistSection(d){
+  const seg=d.blocks[0]||{mode:'dist', value:5000};
+  const dispVal=Math.round(seg.value/100)/10;
+  return `<div class="minilbl" style="margin:4px 0 8px">${t('raceDistanceLabel')}</div>
+    <div class="distchips">
+      ${RACE_DIST_CHIPS_KM.map(km=>`<button class="${seg.value===Math.round(km*1000)?'on':''}" onclick="segDistPick(0,'steady',${km})">${raceChipLabel(km)}</button>`).join('')}
+    </div>
+    <div class="stepper">
+      <button onclick="segDistStep(0,'steady',-1)">−</button>
+      <div class="v mono">${dispVal} ${t('kmShort')}</div>
+      <button onclick="segDistStep(0,'steady',1)">+</button>
+    </div>
+    <div class="exactinput"><input class="mono" dir="ltr" value="${fmtDistInput(seg.value)}" placeholder="${t('distHint')}"
+      oninput="segVal(0,'steady',this.value)"></div>`;
+}
 function segEditor(seg,i,which){
   const isTime=seg.mode==='time';
   const modeToggle=`<div class="toggle" style="margin-bottom:7px">
@@ -1762,7 +1798,7 @@ function segVal(i,which,v){ const b=S.sheet.draft.blocks[i];
 function segUnit(i,which,unit){ const b=S.sheet.draft.blocks[i];
   const seg = which==='steady'? b : b[which]; seg.unit=unit; render(); }
 function segDistPick(i,which,km){ const b=S.sheet.draft.blocks[i];
-  const seg = which==='steady'? b : b[which]; seg.value=km*1000; seg.unit='km'; render(); }
+  const seg = which==='steady'? b : b[which]; seg.value=Math.round(km*1000); seg.unit='km'; render(); }
 function segDistStep(i,which,dir){ const b=S.sheet.draft.blocks[i];
   const seg = which==='steady'? b : b[which];
   const unit=seg.unit||(seg.value>=1000?'km':'m'); const step=unit==='km'?500:50;
