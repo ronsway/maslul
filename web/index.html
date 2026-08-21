@@ -517,6 +517,7 @@ const T={
   zonesNotSet:{he:'לא הוגדר', en:'Not set'},
   racesCount:{he:'תחרויות מתוכננות', en:'races planned'},
   backWord:{he:'חזרה', en:'Back'},
+  matchedByDateNote:{he:'משוייך לפי תאריך - הריצה לא בוצעה ישירות מהאימון בשעון, אך זוהתה כאותו אימון', en:"Matched by date - this run wasn't started from the watch workout, but was identified as the same session"},
 };
 const PHASE_NAME={
   base:{he:'בסיס', en:'Base'}, build:{he:'בנייה', en:'Build'},
@@ -998,7 +999,7 @@ function renderCard(w,idx){
     </div>
     <div class="profile">${bar}</div>
     ${w.actual? `<div class="note actualnote" style="margin-bottom:11px" onclick="openRunDetail(${idx})">
-      ${t('actualLabel')}: ${w.actual.distanceKm} ${t('kmShort')} · ${mmss(w.actual.paceSecPerKm||0)}/${t('kmShort')}${w.actual.avgHR?' · '+Math.round(w.actual.avgHR)+' HR':''}${scoreWorkout(w)!=null?' · '+t('scoreLabel')+' '+scoreWorkout(w)+'%':''} ›
+      ${w.actual.matchedByDate?'~ ':''}${t('actualLabel')}: ${w.actual.distanceKm} ${t('kmShort')} · ${mmss(w.actual.paceSecPerKm||0)}/${t('kmShort')}${w.actual.avgHR?' · '+Math.round(w.actual.avgHR)+' HR':''}${scoreWorkout(w)!=null?' · '+t('scoreLabel')+' '+scoreWorkout(w)+'%':''} ›
     </div>` : ''}
     <div class="steps">
       <div class="step"><span class="pip" style="background:var(--warm)"></span>
@@ -1151,6 +1152,7 @@ function runSheet(){
   return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
     <div class="grab"></div>
     <h2 class="disp">${w.name}</h2>
+    ${a.matchedByDate? `<div class="note" style="margin-bottom:12px">${t('matchedByDateNote')}</div>` : ''}
     <div class="statrow" style="flex-wrap:wrap; gap:8px">
       ${stats.map(([v,l])=>`<div class="statbox" style="flex:1 1 28%; min-width:88px">
         <div class="statval mono">${v}</div><div class="statlbl">${l}</div>
@@ -1776,24 +1778,41 @@ async function fetchAndApplyActivities(since,until){
   const data=await r.json();
   if(data.error) return {matched:0, error:data.error};
   const acts=data.activities||[];
+  const claimed=new Set();
   let matched=0;
+  function applyActual(w,act,matchedByDate){
+    w.done=true;
+    w.actual={
+      activityId:act.activityId, distanceKm:act.distanceKm, durationSec:act.durationSec,
+      paceSecPerKm:act.paceSecPerKm, avgHR:act.avgHR, maxHR:act.maxHR, calories:act.calories,
+      elevationGainM:act.elevationGainM, elevationLossM:act.elevationLossM,
+      avgCadence:act.avgCadence, maxCadence:act.maxCadence,
+      aerobicTrainingEffect:act.aerobicTrainingEffect, anaerobicTrainingEffect:act.anaerobicTrainingEffect,
+      matchedByDate: !!matchedByDate,
+    };
+    claimed.add(act.activityId);
+    matched++;
+  }
+  // pass 1: exact match - the watch was actually following the pushed structured
+  // workout, so Garmin tagged the activity with its workoutId.
   Object.keys(S.plan).forEach(dateStr=>{
     if(dateStr<since || dateStr>until) return;
     S.plan[dateStr].forEach(w=>{
       if(!w.garminWorkoutId) return;
-      const act=acts.find(a=>a.workoutId===w.garminWorkoutId);
-      if(act){
-        w.done=true;
-        w.actual={
-          activityId:act.activityId, distanceKm:act.distanceKm, durationSec:act.durationSec,
-          paceSecPerKm:act.paceSecPerKm, avgHR:act.avgHR, maxHR:act.maxHR, calories:act.calories,
-          elevationGainM:act.elevationGainM, elevationLossM:act.elevationLossM,
-          avgCadence:act.avgCadence, maxCadence:act.maxCadence,
-          aerobicTrainingEffect:act.aerobicTrainingEffect, anaerobicTrainingEffect:act.anaerobicTrainingEffect,
-        };
-        matched++;
-      }
+      const act=acts.find(a=>a.workoutId===w.garminWorkoutId && !claimed.has(a.activityId));
+      if(act) applyActual(w,act,false);
     });
+  });
+  // pass 2: same-day fallback for a run that was actually done but not "started"
+  // from the watch workout (e.g. a gym treadmill session, or a free run) - only
+  // auto-link when a date has exactly one still-unmatched planned workout and
+  // exactly one still-unclaimed Garmin activity, so there's no ambiguity about
+  // which run belongs to which plan entry.
+  Object.keys(S.plan).forEach(dateStr=>{
+    if(dateStr<since || dateStr>until) return;
+    const dayActs=acts.filter(a=>a.date===dateStr && !claimed.has(a.activityId));
+    const unmatchedWorkouts=S.plan[dateStr].filter(w=>!w.actual);
+    if(dayActs.length===1 && unmatchedWorkouts.length===1) applyActual(unmatchedWorkouts[0], dayActs[0], true);
   });
   return {matched};
 }
