@@ -246,6 +246,15 @@
   .minilbl{font-size:11px; color:var(--muted); margin-bottom:5px; font-weight:600;}
   .drawersec{border-top:1px solid var(--line); margin-top:20px; padding-top:16px;}
   .drawersec .minilbl{font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); margin-bottom:12px;}
+  .navrow{display:flex; align-items:center; justify-content:space-between; width:100%;
+    background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:13px 14px;
+    margin-bottom:10px; text-align:start;}
+  .navrow:active{background:var(--panel2);}
+  .navrow .nrt{font-family:'Rubik'; font-weight:700; font-size:14px;}
+  .navrow .nrs{color:var(--muted); font-size:12px; margin-top:2px;}
+  .navrow .nrarrow{color:var(--muted); font-size:16px; flex:none; margin-inline-start:10px;}
+  .backrow{display:flex; align-items:center; gap:8px; margin-bottom:14px;}
+  .backrow button{color:var(--muted); font-weight:700; font-size:13px; display:flex; align-items:center; gap:4px;}
 
   .addblk{width:100%; padding:11px; border-radius:12px; border:1px dashed var(--line);
     color:var(--muted); font-weight:700; font-size:13px; margin-bottom:16px;}
@@ -509,6 +518,9 @@ const T={
   splitsTitle:{he:'פיצולי ק״מ', en:'Km splits'},
   splitsEmpty:{he:'אין נתוני פיצול זמינים לריצה זו', en:'No split data available for this run'},
   loadingWord:{he:'טוען...', en:'Loading...'},
+  zonesNotSet:{he:'לא הוגדר', en:'Not set'},
+  racesCount:{he:'תחרויות מתוכננות', en:'races planned'},
+  backWord:{he:'חזרה', en:'Back'},
 };
 const PHASE_NAME={
   base:{he:'בסיס', en:'Base'}, build:{he:'בנייה', en:'Build'},
@@ -679,8 +691,9 @@ function flattenSteps(w){
 }
 const COLOR={warm:'--warm', work:'--work', recovery:'--rec', easy:'--easy'};
 function totalSecs(w){ return flattenSteps(w).reduce((a,s)=>a+s.secs,0); }
-function fmtStep(s){ // for display: "3:00" for time, "400m" for dist
-  return s.mode==='time'? mmss(s.value) : s.value+' '+t('meterShort');
+function fmtStep(s){ // for display: "3:00" for time, "400m" for short dist, "10 km" once it crosses 1000m
+  if(s.mode==='time') return mmss(s.value);
+  return s.value>=1000? fmtKm(s.value) : s.value+' '+t('meterShort');
 }
 function fmtKm(m){ return (m%1000===0?(m/1000):(Math.round(m/10)/100))+' '+t('kmShort'); }
 /* editor input parsing: accepts "3:00" or "180" for time; "400" or "5"/"5km" for distance */
@@ -967,7 +980,6 @@ function render(){
   </div>
   ${renderSheet()}`;
 
-  attachSwipe();
   if(prevScroll){ const s=document.querySelector('.sheet, .drawer'); if(s) s.scrollTop=prevScroll; }
 }
 
@@ -1034,6 +1046,8 @@ function renderSheet(){
   if(S.sheet.mode==='edit') return editorSheet();
   if(S.sheet.mode==='send') return sendSheet();
   if(S.sheet.mode==='profile') return profileSheet();
+  if(S.sheet.mode==='zones') return zonesSheet();
+  if(S.sheet.mode==='races') return racesSheet();
   if(S.sheet.mode==='generate') return S.sheet.step==='preview'? generatePreviewSheet() : generateConfigSheet();
   if(S.sheet.mode==='stats') return statsSheet();
   if(S.sheet.mode==='run') return runSheet();
@@ -1324,7 +1338,7 @@ function sendSheet(){
 
 /* profile sheet */
 function profileSheet(){
-  const p=S.profile; const rd=S.sheet.raceDraft;
+  const p=S.profile;
   const races=(p.races||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
   const googleAvatar=AUTH.session?.user?.user_metadata?.avatar_url||AUTH.session?.user?.user_metadata?.picture||'';
   const initial=(p.name||'?').trim().charAt(0).toUpperCase()||'?';
@@ -1348,26 +1362,16 @@ function profileSheet(){
     </div>
 
     <div class="drawersec">
-      <div class="minilbl">${t('secZones')}</div>
-      <div class="row2">
-        <div class="field"><label>${t('maxHR')}</label><input class="mono" inputmode="numeric" value="${p.maxHR||''}" oninput="S.profile.maxHR=this.value"></div>
-        <div class="field"><label>${t('restHR')}</label><input class="mono" inputmode="numeric" value="${p.restHR||''}" oninput="S.profile.restHR=this.value"></div>
-      </div>
-      <div class="field" style="margin-bottom:0"><label>${t('thrPace')}</label><input class="mono" dir="ltr" value="${p.thrPace||''}" placeholder="4:30" oninput="S.profile.thrPace=this.value"></div>
-    </div>
-
-    <div class="drawersec">
-      <div class="minilbl">${t('racesTitle')}</div>
-      ${races.length? races.map(r=>`<div class="step" style="padding:6px 0">
-          <span class="lbl">${r.name} · ${r.date}${r.km?' · '+r.km+'km':''}</span>
-          <button class="rm" onclick="delRace('${r.id}')">${t('remove')}</button></div>`).join('')
-        : `<div class="note" style="margin-bottom:10px">${t('noRaces')}</div>`}
-      <div class="field"><label>${t('raceName')}</label><input value="${rd.name}" oninput="raceDraftField('name',this.value)"></div>
-      <div class="row2">
-        <div class="field"><label>${t('raceDate')}</label><input class="mono" dir="ltr" type="date" value="${rd.date}" oninput="raceDraftField('date',this.value)"></div>
-        <div class="field"><label>${t('raceDist')}</label><input class="mono" inputmode="decimal" value="${rd.km}" oninput="raceDraftField('km',this.value)"></div>
-      </div>
-      <button class="addblk" style="margin-bottom:0" onclick="addRace()">${t('addRace')}</button>
+      <button class="navrow" onclick="openZones()">
+        <div><div class="nrt">${t('secZones')}</div>
+          <div class="nrs">${zonesSummary(p)}</div></div>
+        <span class="nrarrow">${drillArrow()}</span>
+      </button>
+      <button class="navrow" style="margin-bottom:0" onclick="openRaces()">
+        <div><div class="nrt">${t('racesTitle')}</div>
+          <div class="nrs">${races.length? races.length+' '+t('racesCount') : t('noRaces')}</div></div>
+        <span class="nrarrow">${drillArrow()}</span>
+      </button>
     </div>
 
     <div class="drawersec">
@@ -1401,21 +1405,81 @@ function profileSheet(){
     </div>
   </div></div>`;
 }
+function zonesSummary(p){
+  if(!p.maxHR && !p.restHR && !p.thrPace) return t('zonesNotSet');
+  return [p.maxHR&&('HR '+p.maxHR+'/'+(p.restHR||'—')), p.thrPace&&(p.thrPace+'/'+t('kmShort'))].filter(Boolean).join(' · ');
+}
+function drillArrow(){ return S.lang==='he'?'‹':'›'; }
+function backArrow(){ return S.lang==='he'?'›':'‹'; }
+
+/* training-zones sub-sheet, drilled into from the settings hub - split out
+   because these numbers get set once and rarely revisited, unlike profile/prefs */
+function zonesSheet(){
+  const p=S.profile;
+  const side=S.lang==='he'?'side-right':'side-left';
+  const closing=S.sheet.closing?' closing':'';
+  return `<div class="drawerscrim${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${closing}">
+    <div class="backrow"><button onclick="backToProfile()">${backArrow()} ${t('backWord')}</button></div>
+    <h2 class="disp">${t('secZones')}</h2>
+    <div class="row2">
+      <div class="field"><label>${t('maxHR')}</label><input class="mono" inputmode="numeric" value="${p.maxHR||''}" oninput="S.profile.maxHR=this.value"></div>
+      <div class="field"><label>${t('restHR')}</label><input class="mono" inputmode="numeric" value="${p.restHR||''}" oninput="S.profile.restHR=this.value"></div>
+    </div>
+    <div class="field" style="margin-bottom:0"><label>${t('thrPace')}</label><input class="mono" dir="ltr" value="${p.thrPace||''}" placeholder="4:30" oninput="S.profile.thrPace=this.value"></div>
+
+    <div class="drawersec">
+      <button class="primary disp" onclick="saveProfile()">${t('save')}</button>
+      <button class="ghost" onclick="backToProfile()">${t('close')}</button>
+    </div>
+  </div></div>`;
+}
+
+/* upcoming-races sub-sheet, same reasoning as zonesSheet() */
+function racesSheet(){
+  const p=S.profile; const rd=S.sheet.raceDraft;
+  const races=(p.races||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const side=S.lang==='he'?'side-right':'side-left';
+  const closing=S.sheet.closing?' closing':'';
+  return `<div class="drawerscrim${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${closing}">
+    <div class="backrow"><button onclick="backFromRaces()">${backArrow()} ${t('backWord')}</button></div>
+    <h2 class="disp">${t('racesTitle')}</h2>
+    ${races.length? races.map(r=>`<div class="step" style="padding:6px 0">
+        <span class="lbl">${r.name} · ${r.date}${r.km?' · '+r.km+'km':''}</span>
+        <button class="rm" onclick="delRace('${r.id}')">${t('remove')}</button></div>`).join('')
+      : `<div class="note" style="margin-bottom:10px">${t('noRaces')}</div>`}
+    <div class="field"><label>${t('raceName')}</label><input value="${rd.name}" oninput="raceDraftField('name',this.value)"></div>
+    <div class="row2">
+      <div class="field"><label>${t('raceDate')}</label><input class="mono" dir="ltr" type="date" value="${rd.date}" oninput="raceDraftField('date',this.value)"></div>
+      <div class="field"><label>${t('raceDist')}</label><input class="mono" inputmode="decimal" value="${rd.km}" oninput="raceDraftField('km',this.value)"></div>
+    </div>
+    <button class="addblk" style="margin-bottom:0" onclick="addRace()">${t('addRace')}</button>
+
+    <div class="drawersec">
+      <button class="ghost" onclick="backFromRaces()">${t('close')}</button>
+    </div>
+  </div></div>`;
+}
 
 /* ============ actions ============ */
 function nav(dir){ S.offset+=dir; render(); }
 function pick(i){ S.sel=i; render(); }
-function openProfile(){ S.sheet={mode:'profile', raceDraft:{date:'',name:'',km:''}}; render(); }
-function saveProfile(){
-  // "+ Add race" is a separate action from the main Save button - if the user
-  // filled in a race but never tapped it, Save used to silently discard that
-  // draft (it only ever lived in S.sheet, which closeSheet() throws away).
+function openProfile(){ S.sheet={mode:'profile'}; render(); }
+function openZones(){ S.sheet={mode:'zones'}; render(); }
+function openRaces(){ S.sheet={mode:'races', raceDraft:{date:'',name:'',km:''}}; render(); }
+function backToProfile(){ save(); S.sheet={mode:'profile'}; render(); }
+function backFromRaces(){
+  // "+ Add race" is a separate action from the main add button - if the user
+  // filled in a race but never tapped it, leaving used to silently discard that
+  // draft (it only ever lived in S.sheet, which gets thrown away on navigation).
   const d=S.sheet && S.sheet.raceDraft;
   if(d && d.date && d.name) addRace();
+  backToProfile();
+}
+function saveProfile(){
   save(); closeSheet();
 }
 function closeSheet(){
-  if(S.sheet && S.sheet.mode==='profile'){
+  if(S.sheet && ['profile','zones','races'].includes(S.sheet.mode)){
     if(S.sheet.closing) return;
     S.sheet.closing=true; render();
     setTimeout(()=>{ S.sheet=null; render(); }, 220);
@@ -1762,12 +1826,17 @@ async function autoCheckCompleted(){
   }catch(e){ /* best-effort - the manual button still works if this fails */ }
 }
 
-/* ---- swipe through days (rolls into the next/previous week at the edges) ---- */
+/* ---- swipe through days anywhere on screen (rolls into the next/previous week at the
+   edges) - attached once to document (not re-bound per render like the old #strip-only
+   version), so it must skip while a sheet/drawer/crop-editor is covering the screen,
+   the same way initPullToRefresh() already does. */
 function attachSwipe(){
-  const el=document.getElementById('strip'); if(!el) return;
   let x0=null,y0=null;
-  el.addEventListener('touchstart',e=>{x0=e.touches[0].clientX; y0=e.touches[0].clientY;},{passive:true});
-  el.addEventListener('touchend',e=>{
+  document.addEventListener('touchstart',e=>{
+    if(document.querySelector('.drawerscrim, .scrim.on, .cropoverlay')){ x0=null; return; }
+    x0=e.touches[0].clientX; y0=e.touches[0].clientY;
+  },{passive:true});
+  document.addEventListener('touchend',e=>{
     if(x0==null) return; const dx=e.changedTouches[0].clientX-x0, dy=e.changedTouches[0].clientY-y0;
     if(Math.abs(dx)>50 && Math.abs(dx)>Math.abs(dy)){
       const dir=dx<0?1:-1; // RTL: swipe left -> forward in time
@@ -1842,6 +1911,7 @@ function initPullToRefresh(){
   }, {passive:true});
 }
 initPullToRefresh();
+attachSwipe();
 
 render();
 </script>
