@@ -187,9 +187,11 @@
     padding:18px 18px calc(20px + env(safe-area-inset-bottom)); overflow-y:auto; box-sizing:border-box;
     box-shadow:0 0 40px rgba(0,0,0,.45);}
   .drawer h2{font-weight:800; font-size:20px; margin:2px 0 16px;}
-  .drawer.side-right{right:0; border-left:1px solid var(--line); animation:drawerInR .26s cubic-bezier(.2,.8,.2,1);}
+  .drawer.side-right{right:0; border-left:1px solid var(--line);}
+  .drawer.side-right.entering{animation:drawerInR .26s cubic-bezier(.2,.8,.2,1);}
   .drawer.side-right.closing{animation:drawerOutR .22s ease forwards;}
-  .drawer.side-left{left:0; border-right:1px solid var(--line); animation:drawerInL .26s cubic-bezier(.2,.8,.2,1);}
+  .drawer.side-left{left:0; border-right:1px solid var(--line);}
+  .drawer.side-left.entering{animation:drawerInL .26s cubic-bezier(.2,.8,.2,1);}
   .drawer.side-left.closing{animation:drawerOutL .22s ease forwards;}
   @keyframes drawerInR{from{transform:translateX(100%);} to{transform:translateX(0);}}
   @keyframes drawerOutR{from{transform:translateX(0);} to{transform:translateX(100%);}}
@@ -255,6 +257,17 @@
   .navrow .nrarrow{color:var(--muted); font-size:16px; flex:none; margin-inline-start:10px;}
   .backrow{display:flex; align-items:center; gap:8px; margin-bottom:14px;}
   .backrow button{color:var(--muted); font-weight:700; font-size:13px; display:flex; align-items:center; gap:4px;}
+
+  .racecard{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 13px; margin-bottom:10px;}
+  .racetop{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:7px;}
+  .racename{font-family:'Rubik'; font-weight:700; font-size:14.5px;}
+  .racecountdown{font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;
+    background:var(--type-on-bg); color:var(--work); flex:none; border:1px solid var(--line); white-space:nowrap;}
+  .racecountdown.past{color:var(--muted);}
+  .racebottom{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .racemeta{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12.5px;}
+  .racedist{background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:2px 8px; font-weight:700; color:var(--txt);}
+  .racerm{color:#ff7a68; font-size:12.5px; font-weight:700; flex:none;}
 
   .addblk{width:100%; padding:11px; border-radius:12px; border:1px dashed var(--line);
     color:var(--muted); font-weight:700; font-size:13px; margin-bottom:16px;}
@@ -504,6 +517,9 @@ const T={
   addRace:{he:'+ הוסף תחרות', en:'+ Add race'},
   noRaces:{he:'אין תחרויות מוגדרות', en:'No races added yet'},
   raceNeedsFields:{he:'הזן תאריך ושם תחרות', en:'Enter a date and race name'},
+  raceToday:{he:'היום!', en:'Today!'},
+  racePast:{he:'עבר', en:'Past'},
+  daysWord:{he:'ימים', en:'days'},
   genSkippedRaceDay:{he:'יום התחרות עצמו הושאר בלי אימון נוסף.', en:"Race day itself was left without an extra training session."},
   runDetailTitle:{he:'פרטי הריצה', en:'Run details'},
   distanceLabel:{he:'מרחק', en:'Distance'},
@@ -536,6 +552,14 @@ function setTheme(th){ S.theme=th; store.set('theme',th); render(); }
 const pad=n=>String(n).padStart(2,'0');
 const uid=()=>Math.random().toString(36).slice(2,9);
 function ymd(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function daysUntil(dateStr){
+  const now=new Date(); now.setHours(0,0,0,0);
+  return Math.round((new Date(dateStr+'T00:00:00')-now)/86400000);
+}
+function fmtRaceDate(dateStr){
+  const d=new Date(dateStr+'T00:00:00');
+  return d.getDate()+' '+MONTHS_I18N[S.lang][d.getMonth()]+' '+d.getFullYear();
+}
 
 /* rest-day flavor: a different fun emoji+caption per day, picked deterministically
    from the date so it doesn't change on every re-render but still varies day to day */
@@ -1339,6 +1363,14 @@ function sendSheet(){
   </div></div>`;
 }
 
+/* the drawer's slide-in animation is baked into .drawer.side-*'s CSS via an
+   .entering modifier (not on the base rule) - render() rebuilds the whole DOM
+   on every call, including from unrelated background renders (auth events,
+   cloud sync) while a drawer sheet is already open, which would otherwise
+   replay the slide-in animation each time and look like a double-open blink.
+   Flip this once per sheet instance so only the very first paint animates. */
+function sheetEntering(){ const e=!S.sheet.entered; S.sheet.entered=true; return e?' entering':''; }
+
 /* profile sheet */
 function profileSheet(){
   const p=S.profile;
@@ -1347,7 +1379,7 @@ function profileSheet(){
   const initial=(p.name||'?').trim().charAt(0).toUpperCase()||'?';
   const side=S.lang==='he'?'side-right':'side-left';
   const closing=S.sheet.closing?' closing':'';
-  return `<div class="drawerscrim${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${closing}">
+  return `<div class="drawerscrim${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${sheetEntering()}${closing}">
     <h2 class="disp">${t('profileTitle')}</h2>
 
     <div class="drawersec" style="margin-top:0; border-top:none; padding-top:0">
@@ -1426,7 +1458,7 @@ function zonesSheet(){
   const p=S.profile;
   const side=S.lang==='he'?'side-right':'side-left';
   const closing=S.sheet.closing?' closing':'';
-  return `<div class="drawerscrim${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${closing}">
+  return `<div class="drawerscrim${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${sheetEntering()}${closing}">
     <div class="backrow"><button onclick="backToProfile()">${backArrow()} ${t('backWord')}</button></div>
     <h2 class="disp">${t('secZones')}</h2>
     <div class="row2">
@@ -1448,12 +1480,26 @@ function racesSheet(){
   const races=(p.races||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
   const side=S.lang==='he'?'side-right':'side-left';
   const closing=S.sheet.closing?' closing':'';
-  return `<div class="drawerscrim${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${closing}">
+  return `<div class="drawerscrim${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${sheetEntering()}${closing}">
     <div class="backrow"><button onclick="backFromRaces()">${backArrow()} ${t('backWord')}</button></div>
     <h2 class="disp">${t('racesTitle')}</h2>
-    ${races.length? races.map(r=>`<div class="step" style="padding:6px 0">
-        <span class="lbl">${r.name} · ${r.date}${r.km?' · '+r.km+'km':''}</span>
-        <button class="rm" onclick="delRace('${r.id}')">${t('remove')}</button></div>`).join('')
+    ${races.length? races.map(r=>{
+        const dLeft=daysUntil(r.date);
+        const countdown=dLeft>0? '+'+dLeft+' '+t('daysWord') : (dLeft===0? t('raceToday') : t('racePast'));
+        return `<div class="racecard">
+          <div class="racetop">
+            <span class="racename">${r.name}</span>
+            <span class="racecountdown mono${dLeft<0?' past':''}">${countdown}</span>
+          </div>
+          <div class="racebottom">
+            <div class="racemeta">
+              <span class="mono">${fmtRaceDate(r.date)}</span>
+              ${r.km? `<span class="racedist mono">${r.km} ${t('kmShort')}</span>` : ''}
+            </div>
+            <button class="racerm" onclick="delRace('${r.id}')">${t('remove')}</button>
+          </div>
+        </div>`;
+      }).join('')
       : `<div class="note" style="margin-bottom:10px">${t('noRaces')}</div>`}
     <div class="field"><label>${t('raceName')}</label><input value="${rd.name}" oninput="raceDraftField('name',this.value)"></div>
     <div class="row2">
