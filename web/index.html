@@ -95,9 +95,12 @@
   .empty .emoji{font-size:44px; line-height:1; margin-bottom:10px;}
   .empty .big{font-family:'Rubik'; font-weight:700; color:var(--txt); font-size:16px; margin-bottom:4px;}
 
-  .card{background:var(--panel); border:1px solid var(--line); border-radius:18px;
+  .card{position:relative; background:var(--panel); border:1px solid var(--line); border-radius:18px;
     padding:15px 15px 13px; margin-bottom:12px; box-shadow:var(--shadow);}
-  .card.done{opacity:.55;}
+  .card.done{border-color:var(--rec);}
+  .card.done::after{content:'✓'; position:absolute; top:-8px; inset-inline-end:14px; width:22px; height:22px;
+    border-radius:50%; background:var(--rec); color:#062019; font-size:12px; font-weight:800;
+    display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.35);}
   .card .top{display:flex; align-items:center; justify-content:space-between; margin-bottom:11px;}
   .badge{font-family:'Rubik'; font-weight:700; font-size:13px; padding:5px 11px; border-radius:9px;}
   .card .dur{font-family:'JetBrains Mono'; font-weight:700; font-size:14px; color:var(--muted);}
@@ -297,7 +300,11 @@
   .res.err{background:var(--res-err-bg); border:1px solid var(--res-err-border); color:var(--res-err-text);}
 
   /* ---- run detail: stat grid + split rows ---- */
-  .actualnote{cursor:pointer;}
+  .actualnote{width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px;
+    font-size:12.5px; line-height:1.5; text-align:start; color:var(--txt); font-weight:600;
+    background:var(--panel); border:1.5px solid var(--easy); border-radius:12px; padding:11px 12px; margin-bottom:11px;}
+  .actualnote:active{background:var(--panel2);}
+  .actualnote .nrarrow{color:var(--easy);}
   .splits{display:flex; flex-direction:column; gap:4px;}
   .splitrow{display:grid; grid-template-columns:24px 1fr 1fr 1fr 1fr; gap:6px; align-items:center;
     padding:8px 10px; border-radius:9px; background:var(--panel2);}
@@ -1034,9 +1041,10 @@ function renderCard(w,idx){
       <span class="dur">${mmss(total)} · ~${Math.round(total/60)} ${t('min')}</span>
     </div>
     <div class="profile">${bar}</div>
-    ${w.actual? `<div class="note actualnote" style="margin-bottom:11px" onclick="openRunDetail(${idx})">
-      ${w.actual.matchedByDate?'~ ':''}${t('actualLabel')}: ${w.actual.distanceKm} ${t('kmShort')} · ${mmss(w.actual.paceSecPerKm||0)}/${t('kmShort')}${w.actual.avgHR?' · '+Math.round(w.actual.avgHR)+' HR':''}${scoreWorkout(w)!=null?' · '+t('scoreLabel')+' '+scoreWorkout(w)+'%':''} ›
-    </div>` : ''}
+    ${w.actual? `<button class="actualnote" onclick="openRunDetail(${idx})">
+      <span>${w.actual.matchedByDate?'~ ':''}${t('actualLabel')}: ${w.actual.distanceKm} ${t('kmShort')} · ${mmss(w.actual.paceSecPerKm||0)}/${t('kmShort')}${w.actual.avgHR?' · '+Math.round(w.actual.avgHR)+' HR':''}${scoreWorkout(w)!=null?' · '+t('scoreLabel')+' '+scoreWorkout(w)+'%':''}</span>
+      <span class="nrarrow">${drillArrow()}</span>
+    </button>` : ''}
     <div class="steps">
       <div class="step"><span class="pip" style="background:var(--warm)"></span>
         <span class="lbl">${t('warmup')}</span><span class="val">${mmss(w.warmupSec)}</span></div>
@@ -1082,7 +1090,7 @@ function renderSheet(){
   if(S.sheet.mode==='run') return runSheet();
   return `<div class="scrim"></div>`;
 }
-function openStats(){ S.sheet={mode:'stats'}; render(); }
+function openStats(){ if(S.sheet && S.sheet.mode==='stats') return; S.sheet={mode:'stats'}; render(); }
 function openRunDetail(idx){
   S.sheet={mode:'run', idx, splits:null, splitsLoading:false, splitsError:null};
   render();
@@ -1527,10 +1535,14 @@ function racesSheet(){
 function nav(dir){ S.offset+=dir; render(); }
 function pick(i){ S.sel=i; render(); }
 function goToToday(){ S.offset=0; S.sel=new Date().getDay(); render(); }
-function openProfile(){ S.sheet={mode:'profile', photoMenuOpen:false}; render(); }
+// guarded so a second rapid trigger of the same open-action (e.g. a duplicate
+// touch/click pair firing close together on some devices) reuses the sheet
+// already being opened instead of replacing it with a fresh instance - which
+// would restart its entrance animation and look like the sheet opened twice.
+function openProfile(){ if(S.sheet && S.sheet.mode==='profile') return; S.sheet={mode:'profile', photoMenuOpen:false}; render(); }
 function togglePhotoMenu(){ S.sheet.photoMenuOpen=!S.sheet.photoMenuOpen; render(); }
-function openZones(){ S.sheet={mode:'zones'}; render(); }
-function openRaces(){ S.sheet={mode:'races', raceDraft:{date:'',name:'',km:''}}; render(); }
+function openZones(){ if(S.sheet && S.sheet.mode==='zones') return; S.sheet={mode:'zones'}; render(); }
+function openRaces(){ if(S.sheet && S.sheet.mode==='races') return; S.sheet={mode:'races', raceDraft:{date:'',name:'',km:''}}; render(); }
 function backToProfile(){ save(); S.sheet={mode:'profile'}; render(); }
 function backFromRaces(){
   // "+ Add race" is a separate action from the main add button - if the user
