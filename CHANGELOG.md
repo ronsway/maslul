@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.18 - 2026-08-21 15:03 - Modern SVG icons for stats and sync buttons
+
 ## v1.0.17 - 2026-08-21 15:00 - Declutter profile section: name next to avatar photo actions behind edit badge
 
 ## v1.0.16 - 2026-08-21 14:56 - Match completed runs to planned workouts by date as a fallback
