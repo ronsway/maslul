@@ -272,6 +272,16 @@
   .res.ok{background:var(--res-ok-bg); border:1px solid var(--res-ok-border); color:var(--res-ok-text);}
   .res.err{background:var(--res-err-bg); border:1px solid var(--res-err-border); color:var(--res-err-text);}
 
+  /* ---- run detail: stat grid + split rows ---- */
+  .actualnote{cursor:pointer;}
+  .splits{display:flex; flex-direction:column; gap:4px;}
+  .splitrow{display:grid; grid-template-columns:24px 1fr 1fr 1fr 1fr; gap:6px; align-items:center;
+    padding:8px 10px; border-radius:9px; background:var(--panel2);}
+  .splitrow.head{background:none; color:var(--muted); font-weight:700; font-size:10.5px;
+    letter-spacing:.03em; text-transform:uppercase; padding:0 10px;}
+  .splitrow .i{font-family:'JetBrains Mono'; color:var(--muted); font-size:12px;}
+  .splitrow .v{font-family:'JetBrains Mono'; font-weight:600; font-size:12.5px;}
+
   /* ---- photo crop editor ---- */
   .cropoverlay{position:fixed; inset:0; background:rgba(6,8,11,.78); backdrop-filter:blur(2px);
     z-index:60; display:flex; align-items:center; justify-content:center; padding:20px; animation:scrimIn .18s ease;}
@@ -485,6 +495,20 @@ const T={
   noRaces:{he:'אין תחרויות מוגדרות', en:'No races added yet'},
   raceNeedsFields:{he:'הזן תאריך ושם תחרות', en:'Enter a date and race name'},
   genSkippedRaceDay:{he:'יום התחרות עצמו הושאר בלי אימון נוסף.', en:"Race day itself was left without an extra training session."},
+  runDetailTitle:{he:'פרטי הריצה', en:'Run details'},
+  distanceLabel:{he:'מרחק', en:'Distance'},
+  durationLabel:{he:'משך', en:'Duration'},
+  paceLabel:{he:'קצב', en:'Pace'},
+  avgHRLabel:{he:'דופק ממוצע', en:'Avg heart rate'},
+  caloriesLabel:{he:'קלוריות', en:'Calories'},
+  elevGainLabel:{he:'עלייה', en:'Elevation gain'},
+  elevLossLabel:{he:'ירידה', en:'Elevation loss'},
+  cadenceLabel:{he:'קצב צעדים', en:'Cadence'},
+  aerobicLabel:{he:'אפקט אירובי', en:'Aerobic effect'},
+  anaerobicLabel:{he:'אפקט אנאירובי', en:'Anaerobic effect'},
+  splitsTitle:{he:'פיצולי ק״מ', en:'Km splits'},
+  splitsEmpty:{he:'אין נתוני פיצול זמינים לריצה זו', en:'No split data available for this run'},
+  loadingWord:{he:'טוען...', en:'Loading...'},
 };
 const PHASE_NAME={
   base:{he:'בסיס', en:'Base'}, build:{he:'בנייה', en:'Build'},
@@ -969,8 +993,8 @@ function renderCard(w,idx){
       <span class="dur">${mmss(total)} · ~${Math.round(total/60)} ${t('min')}</span>
     </div>
     <div class="profile">${bar}</div>
-    ${w.actual? `<div class="note" style="margin-bottom:11px">
-      ${t('actualLabel')}: ${w.actual.distanceKm} ${t('kmShort')} · ${mmss(w.actual.paceSecPerKm||0)}/${t('kmShort')}${w.actual.avgHR?' · '+Math.round(w.actual.avgHR)+' HR':''}${scoreWorkout(w)!=null?' · '+t('scoreLabel')+' '+scoreWorkout(w)+'%':''}
+    ${w.actual? `<div class="note actualnote" style="margin-bottom:11px" onclick="openRunDetail(${idx})">
+      ${t('actualLabel')}: ${w.actual.distanceKm} ${t('kmShort')} · ${mmss(w.actual.paceSecPerKm||0)}/${t('kmShort')}${w.actual.avgHR?' · '+Math.round(w.actual.avgHR)+' HR':''}${scoreWorkout(w)!=null?' · '+t('scoreLabel')+' '+scoreWorkout(w)+'%':''} ›
     </div>` : ''}
     <div class="steps">
       <div class="step"><span class="pip" style="background:var(--warm)"></span>
@@ -1012,9 +1036,33 @@ function renderSheet(){
   if(S.sheet.mode==='profile') return profileSheet();
   if(S.sheet.mode==='generate') return S.sheet.step==='preview'? generatePreviewSheet() : generateConfigSheet();
   if(S.sheet.mode==='stats') return statsSheet();
+  if(S.sheet.mode==='run') return runSheet();
   return `<div class="scrim"></div>`;
 }
 function openStats(){ S.sheet={mode:'stats'}; render(); }
+function openRunDetail(idx){
+  S.sheet={mode:'run', idx, splits:null, splitsLoading:false, splitsError:null};
+  render();
+  loadRunSplits();
+}
+async function loadRunSplits(){
+  const date=ymd(weekDates(S.offset)[S.sel]);
+  const w=(S.plan[date]||[])[S.sheet.idx];
+  if(!w || !w.actual || !w.actual.activityId) return;
+  S.sheet.splitsLoading=true; render();
+  try{
+    const r=await fetch(`${BACKEND_BASE}/activity-splits?activityId=${w.actual.activityId}`);
+    const data=await r.json();
+    if(!S.sheet || S.sheet.mode!=='run') return; // sheet closed while the request was in flight
+    S.sheet.splits=data.splits||[];
+    S.sheet.splitsError=data.error||null;
+  }catch(e){
+    if(S.sheet && S.sheet.mode==='run') S.sheet.splitsError=e.message;
+  }finally{
+    if(S.sheet && S.sheet.mode==='run') S.sheet.splitsLoading=false;
+    render();
+  }
+}
 function statsSheet(){
   const weeks=[]; for(let i=-11;i<=0;i++) weeks.push(weekStats(i));
   const maxKm=Math.max(1, ...weeks.map(w=>w.planned));
@@ -1045,6 +1093,65 @@ function statsSheet(){
     </div>
     <div class="note" style="margin-top:10px">${t('statsLegend')}</div>
 
+    <button class="ghost" onclick="closeSheet()" style="margin-top:16px">${t('close')}</button>
+  </div></div>`;
+}
+
+/* run detail sheet: everything Garmin gave us for one completed run, plus
+   lazily-fetched km splits (kept out of /activities since that's one extra
+   Garmin request per run - only worth it once the user actually opens this) */
+function runSheet(){
+  const date=ymd(weekDates(S.offset)[S.sel]);
+  const w=(S.plan[date]||[])[S.sheet.idx];
+  if(!w || !w.actual){
+    return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
+      <div class="grab"></div>
+      <button class="ghost" onclick="closeSheet()">${t('close')}</button>
+    </div></div>`;
+  }
+  const a=w.actual;
+  const stats=[
+    [a.distanceKm!=null? a.distanceKm+' '+t('kmShort') : '—', t('distanceLabel')],
+    [a.durationSec!=null? mmss(a.durationSec) : '—', t('durationLabel')],
+    [a.paceSecPerKm? mmss(a.paceSecPerKm)+'/'+t('kmShort') : '—', t('paceLabel')],
+    [a.avgHR!=null? Math.round(a.avgHR) : '—', t('avgHRLabel')],
+    [a.maxHR!=null? Math.round(a.maxHR) : '—', t('maxHR')],
+    [a.calories!=null? Math.round(a.calories) : '—', t('caloriesLabel')],
+    [a.elevationGainM!=null? Math.round(a.elevationGainM)+t('meterShort') : '—', t('elevGainLabel')],
+    [a.elevationLossM!=null? Math.round(a.elevationLossM)+t('meterShort') : '—', t('elevLossLabel')],
+    [a.avgCadence!=null? Math.round(a.avgCadence) : '—', t('cadenceLabel')],
+    [a.aerobicTrainingEffect!=null? a.aerobicTrainingEffect.toFixed(1) : '—', t('aerobicLabel')],
+    [a.anaerobicTrainingEffect!=null? a.anaerobicTrainingEffect.toFixed(1) : '—', t('anaerobicLabel')],
+  ];
+  const sc=scoreWorkout(w);
+  if(sc!=null) stats.push([sc+'%', t('scoreLabel')]);
+
+  const splits=S.sheet.splits;
+  const splitsBody = S.sheet.splitsLoading
+    ? `<div class="note">${t('loadingWord')}</div>`
+    : (splits && splits.length
+        ? `<div class="splits">
+            <div class="splitrow head"><span>#</span><span>${t('kmShort')}</span><span>${t('paceLabel')}</span><span>HR</span><span>⛰</span></div>
+            ${splits.map(s=>`<div class="splitrow">
+              <span class="i">${s.index}</span>
+              <span class="v">${s.distanceKm!=null? s.distanceKm.toFixed(2) : '—'}</span>
+              <span class="v">${s.paceSecPerKm? mmss(s.paceSecPerKm) : '—'}</span>
+              <span class="v">${s.avgHR!=null? Math.round(s.avgHR) : '—'}</span>
+              <span class="v">${s.elevationGainM!=null? Math.round(s.elevationGainM) : '—'}</span>
+            </div>`).join('')}
+          </div>`
+        : `<div class="note">${S.sheet.splitsError || t('splitsEmpty')}</div>`);
+
+  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
+    <div class="grab"></div>
+    <h2 class="disp">${w.name}</h2>
+    <div class="statrow" style="flex-wrap:wrap; gap:8px">
+      ${stats.map(([v,l])=>`<div class="statbox" style="flex:1 1 28%; min-width:88px">
+        <div class="statval mono">${v}</div><div class="statlbl">${l}</div>
+      </div>`).join('')}
+    </div>
+    <div class="minilbl" style="margin:18px 0 8px">${t('splitsTitle')}</div>
+    ${splitsBody}
     <button class="ghost" onclick="closeSheet()" style="margin-top:16px">${t('close')}</button>
   </div></div>`;
 }
@@ -1620,7 +1727,13 @@ async function fetchAndApplyActivities(since,until){
       const act=acts.find(a=>a.workoutId===w.garminWorkoutId);
       if(act){
         w.done=true;
-        w.actual={distanceKm:act.distanceKm, durationSec:act.durationSec, paceSecPerKm:act.paceSecPerKm, avgHR:act.avgHR};
+        w.actual={
+          activityId:act.activityId, distanceKm:act.distanceKm, durationSec:act.durationSec,
+          paceSecPerKm:act.paceSecPerKm, avgHR:act.avgHR, maxHR:act.maxHR, calories:act.calories,
+          elevationGainM:act.elevationGainM, elevationLossM:act.elevationLossM,
+          avgCadence:act.avgCadence, maxCadence:act.maxCadence,
+          aerobicTrainingEffect:act.aerobicTrainingEffect, anaerobicTrainingEffect:act.anaerobicTrainingEffect,
+        };
         matched++;
       }
     });

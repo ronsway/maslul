@@ -266,5 +266,56 @@ def activities(since: str, until: Optional[str] = None, x_api_secret: Optional[s
             "durationSec": round(dur_s),
             "paceSecPerKm": round(1000 / speed) if speed else None,
             "avgHR": a.get("averageHR"),
+            # everything below comes free in the same Garmin summary call - no extra request
+            "maxHR": a.get("maxHR"),
+            "calories": a.get("calories"),
+            "elevationGainM": a.get("elevationGain"),
+            "elevationLossM": a.get("elevationLoss"),
+            "avgCadence": a.get("averageRunningCadenceInStepsPerMinute"),
+            "maxCadence": a.get("maxRunningCadenceInStepsPerMinute"),
+            "aerobicTrainingEffect": a.get("aerobicTrainingEffect"),
+            "anaerobicTrainingEffect": a.get("anaerobicTrainingEffect"),
         })
     return {"activities": out}
+
+@app.get("/activity-splits")
+def activity_splits(activityId: str, x_api_secret: Optional[str] = Header(default=None)):
+    """Per-km (or per-lap) splits for one completed activity, fetched on demand
+    when the user opens a run's detail view - not worth pulling for every activity
+    in /activities since it's a separate Garmin request per run.
+
+    The lapDTOs field names below are unverified: garminconnect just proxies
+    Garmin Connect's raw JSON here (see get_activity_splits in the installed
+    version), which isn't documented anywhere official. If splits come back
+    empty on a real account, inspect the raw response shape and adjust the
+    key names - this is the same fragility CLAUDE.md warns about for the
+    workout step-builder helpers.
+    """
+    check_secret(x_api_secret)
+    try:
+        client = get_client()
+    except HTTPException:
+        raise
+    except Exception as e:
+        return {"splits": [], "error": f"garmin auth failed: {_describe_exception(e)}"}
+    try:
+        raw = client.get_activity_splits(activityId)
+    except Exception as e:
+        return {"splits": [], "error": str(e)}
+    laps = raw.get("lapDTOs") or raw.get("laps") or []
+    splits = []
+    for i, lap in enumerate(laps):
+        dist_m = lap.get("distance") or 0
+        dur_s = lap.get("duration") or lap.get("movingDuration") or 0
+        splits.append({
+            "index": i + 1,
+            "distanceKm": round(dist_m / 1000, 3) if dist_m else None,
+            "durationSec": round(dur_s) if dur_s else None,
+            "paceSecPerKm": round(dur_s / (dist_m / 1000)) if dist_m and dur_s else None,
+            "elevationGainM": lap.get("elevationGain"),
+            "elevationLossM": lap.get("elevationLoss"),
+            "avgHR": lap.get("averageHR"),
+            "maxHR": lap.get("maxHR"),
+            "calories": lap.get("calories"),
+        })
+    return {"splits": splits}
