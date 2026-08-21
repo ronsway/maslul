@@ -5,6 +5,12 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.9 - 2026-08-21 11:21 - Swipe through days settings drawer reorg compact sync button
+
+## v1.0.8 - 2026-08-21 11:19 - Deploy
+
+## v1.0.7 - 2026-08-21 11:15 - Deploy
+
 ## v1.0.6 - 2026-08-19 16:27 - Redesign segment editor: steppers, distance chips, unit toggle, warmup/cooldown switch
 
 ## v1.0.5 - 2026-08-16 14:56 - Fix avatar frame not filling circle, races silently lost on Save
