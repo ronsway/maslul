@@ -55,9 +55,12 @@
   .profbtn{position:relative; width:40px; height:40px; border-radius:50%; background:var(--panel2);
     border:1px solid var(--line); display:grid; place-items:center; font-weight:700; font-size:15px; overflow:hidden; flex:none;}
   .profbtn img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
-  .avatarbig{position:relative; width:64px; height:64px; border-radius:50%; overflow:hidden; background:var(--panel2);
-    border:1px solid var(--line); display:grid; place-items:center; font-weight:700; font-size:22px; flex:none;}
-  .avatarbig img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
+  .avatarbig{position:relative; width:64px; height:64px; border-radius:50%; overflow:visible; background:var(--panel2);
+    border:1px solid var(--line); display:grid; place-items:center; font-weight:700; font-size:22px; flex:none; padding:0;}
+  .avatarbig img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; border-radius:50%;}
+  .avatarbadge{position:absolute; bottom:-2px; inset-inline-end:-2px; width:22px; height:22px; border-radius:50%;
+    background:var(--work); color:#1a0d09; display:grid; place-items:center; font-size:11px;
+    border:2px solid var(--ink); z-index:1;}
   .hdrbtns{display:flex; align-items:center; gap:8px; flex:none;}
   .langbtn{height:40px; padding:0 13px; border-radius:20px; background:var(--panel2);
     border:1px solid var(--line); font-weight:700; font-size:13px; flex:none;}
@@ -465,6 +468,7 @@ const T={
   actualLabel:{he:'בפועל', en:'Actual'},
   scoreLabel:{he:'ציון', en:'score'},
   sendingWord:{he:'שולח...', en:'Sending...'},
+  editPhoto:{he:'ערוך תמונה', en:'Edit photo'},
   uploadPhoto:{he:'העלה תמונה', en:'Upload photo'},
   importGooglePhoto:{he:'ייבא מגוגל', en:'Import from Google'},
   removePhoto:{he:'הסר תמונה', en:'Remove photo'},
@@ -1343,16 +1347,21 @@ function profileSheet(){
 
     <div class="drawersec" style="margin-top:0; border-top:none; padding-top:0">
       <div class="minilbl">${t('secProfile')}</div>
-      <div style="display:flex; align-items:center; gap:14px; margin-bottom:18px">
-        <div class="avatarbig">${p.photo?`<img src="${p.photo}">`:initial}</div>
-        <div style="display:flex; flex-direction:column; gap:8px; flex:1">
+      <div style="display:flex; align-items:center; gap:14px; margin-bottom:${S.sheet.photoMenuOpen?'10px':'18px'}">
+        <button class="avatarbig" onclick="togglePhotoMenu()" aria-label="${t('editPhoto')}">
+          ${p.photo?`<img src="${p.photo}">`:initial}
+          <span class="avatarbadge">✎</span>
+        </button>
+        <input value="${p.name||''}" placeholder="${t('name')}" oninput="S.profile.name=this.value"
+          style="flex:1; background:var(--panel); border:1px solid var(--line); color:var(--txt);
+          border-radius:12px; padding:12px; font-family:'Assistant'; font-size:15px;">
+      </div>
+      ${S.sheet.photoMenuOpen? `<div style="display:flex; flex-direction:column; gap:8px; margin-bottom:18px">
           <input type="file" accept="image/*" id="photoInput" style="display:none" onchange="onPhotoFile(this)">
           <button class="ghost" style="margin:0" onclick="document.getElementById('photoInput').click()">${t('uploadPhoto')}</button>
           ${googleAvatar?`<button class="ghost" style="margin:0" onclick="importGooglePhoto()">${t('importGooglePhoto')}</button>`:''}
           ${p.photo?`<button class="ghost" style="margin:0; color:#ff7a68" onclick="removePhoto()">${t('removePhoto')}</button>`:''}
-        </div>
-      </div>
-      <div class="field" style="margin-bottom:0"><label>${t('name')}</label><input value="${p.name||''}" oninput="S.profile.name=this.value"></div>
+        </div>` : ''}
     </div>
 
     <div class="drawersec">
@@ -1458,7 +1467,8 @@ function racesSheet(){
 function nav(dir){ S.offset+=dir; render(); }
 function pick(i){ S.sel=i; render(); }
 function goToToday(){ S.offset=0; S.sel=new Date().getDay(); render(); }
-function openProfile(){ S.sheet={mode:'profile'}; render(); }
+function openProfile(){ S.sheet={mode:'profile', photoMenuOpen:false}; render(); }
+function togglePhotoMenu(){ S.sheet.photoMenuOpen=!S.sheet.photoMenuOpen; render(); }
 function openZones(){ S.sheet={mode:'zones'}; render(); }
 function openRaces(){ S.sheet={mode:'races', raceDraft:{date:'',name:'',km:''}}; render(); }
 function backToProfile(){ save(); S.sheet={mode:'profile'}; render(); }
@@ -1505,7 +1515,7 @@ function importGooglePhoto(){
   img.onerror=()=>toast(t('photoFailedAlert'),'err');
   img.src=url;
 }
-function removePhoto(){ S.profile.photo=''; save(); render(); }
+function removePhoto(){ S.profile.photo=''; if(S.sheet) S.sheet.photoMenuOpen=false; save(); render(); }
 
 /* ---- photo crop editor: drag to pan, slider to zoom, over a circular preview
    matching the final avatar shape, so the user picks the framing themselves
