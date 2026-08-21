@@ -268,6 +268,8 @@
   .racemeta{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12.5px;}
   .racedist{background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:2px 8px; font-weight:700; color:var(--txt);}
   .racerm{color:#ff7a68; font-size:12.5px; font-weight:700; flex:none;}
+  .raceactions{display:flex; align-items:center; gap:14px; flex:none;}
+  .racesearch{color:var(--easy); font-size:12.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px; text-decoration:none;}
 
   .addblk{width:100%; padding:11px; border-radius:12px; border:1px dashed var(--line);
     color:var(--muted); font-weight:700; font-size:13px; margin-bottom:16px;}
@@ -517,6 +519,7 @@ const T={
   addRace:{he:'+ הוסף תחרות', en:'+ Add race'},
   noRaces:{he:'אין תחרויות מוגדרות', en:'No races added yet'},
   raceNeedsFields:{he:'הזן תאריך ושם תחרות', en:'Enter a date and race name'},
+  searchRaceInfo:{he:'חפש מידע', en:'Search info'},
   raceToday:{he:'היום!', en:'Today!'},
   racePast:{he:'עבר', en:'Past'},
   daysWord:{he:'ימים', en:'days'},
@@ -1496,7 +1499,13 @@ function racesSheet(){
               <span class="mono">${fmtRaceDate(r.date)}</span>
               ${r.km? `<span class="racedist mono">${r.km} ${t('kmShort')}</span>` : ''}
             </div>
-            <button class="racerm" onclick="delRace('${r.id}')">${t('remove')}</button>
+            <div class="raceactions">
+              <a class="racesearch" target="_blank" rel="noopener" href="https://www.google.com/search?q=${encodeURIComponent(r.name+' '+r.date.slice(0,4))}">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                ${t('searchRaceInfo')}
+              </a>
+              <button class="racerm" onclick="delRace('${r.id}')">${t('remove')}</button>
+            </div>
           </div>
         </div>`;
       }).join('')
