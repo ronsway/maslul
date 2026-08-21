@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.20 - 2026-08-21 15:12 - Add search-info link to race cards
+
 ## v1.0.19 - 2026-08-21 15:09 - Fix settings double-blink redesign race cards with countdown and proper RTL
 
 ## v1.0.18 - 2026-08-21 15:03 - Modern SVG icons for stats and sync buttons
