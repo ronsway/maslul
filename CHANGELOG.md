@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.12 - 2026-08-21 14:23 - Deploy
+
 ## v1.0.11 - 2026-08-21 11:31 - Per-run detail view: richer Garmin stats plus on-demand km splits
 
 ## v1.0.10 - 2026-08-21 11:22 - Deploy
