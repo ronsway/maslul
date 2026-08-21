@@ -126,6 +126,9 @@
   .kmbar .fill{height:100%; background:linear-gradient(90deg,var(--work),var(--warm)); border-radius:6px; transition:width .3s ease;}
   .kmbar .lbl{display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-top:6px;}
   .synclink{display:block; margin-top:8px; font-size:12px; color:var(--easy); font-weight:700; text-decoration:underline;}
+  .syncicon{display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px;
+    border-radius:50%; background:var(--panel2); border:1px solid var(--line); font-size:11px; flex:none;}
+  .syncicon:active{background:var(--panel);}
 
   /* ---- stats sheet ---- */
   .statrow{display:flex; gap:8px;}
@@ -418,6 +421,11 @@ const T={
   profileTitle:{he:'הגדרות', en:'Settings'},
   secProfile:{he:'פרופיל', en:'Profile'},
   secZones:{he:'איזורי אימון', en:'Training zones'},
+  secPrefs:{he:'העדפות תצוגה', en:'Display preferences'},
+  languageLabel:{he:'שפה', en:'Language'},
+  themeLabel:{he:'ערכת נושא', en:'Theme'},
+  darkWord:{he:'כהה', en:'Dark'},
+  lightWord:{he:'בהיר', en:'Light'},
   secAccount:{he:'חשבון', en:'Account'},
   name:{he:'שם', en:'Name'},
   maxHR:{he:'דופק מקסימלי', en:'Max heart rate'},
@@ -437,7 +445,7 @@ const T={
   doneWord:{he:'בוצע', en:'Done'},
   markDone:{he:'סמן כבוצע', en:'Mark done'},
   weeklyKm:{he:'ק״מ השבוע', en:'km this week'},
-  checkCompleted:{he:'🔄 בדוק מה בוצע בגרמין', en:'🔄 Check what was completed on Garmin'},
+  checkCompleted:{he:'בדוק מה בוצע בגרמין', en:'Check what was completed on Garmin'},
   syncedSuffix:{he:'אימונים סונכרנו מגרמין', en:'workouts synced from Garmin'},
   actualLabel:{he:'בפועל', en:'Actual'},
   scoreLabel:{he:'ציון', en:'score'},
@@ -878,16 +886,17 @@ function render(){
     </div>
     <div class="hdrbtns">
       <button class="langbtn" onclick="openStats()">📊</button>
-      <button class="langbtn" onclick="setTheme('${S.theme==='light'?'dark':'light'}')">${S.theme==='light'?'🌙':'☀️'}</button>
-      <button class="langbtn" onclick="setLang('${S.lang==='he'?'en':'he'}')">${S.lang==='he'?'EN':'עב'}</button>
       <button class="profbtn" onclick="openProfile()">${S.profile.photo?`<img src="${S.profile.photo}">`:initials.toUpperCase()}</button>
     </div>
   </header>
 
   ${totalKm>0? `<div class="kmbar">
     <div class="track"><div class="fill" style="width:${kmPct}%"></div></div>
-    <div class="lbl"><span class="mono">${doneKm.toFixed(1)} / ${totalKm.toFixed(1)} ${t('weeklyKm')}</span><span>${kmPct}%</span></div>
-    <button class="synclink" onclick="checkCompleted()">${t('checkCompleted')}</button>
+    <div class="lbl"><span class="mono">${doneKm.toFixed(1)} / ${totalKm.toFixed(1)} ${t('weeklyKm')}</span>
+      <span style="display:flex; align-items:center; gap:7px">${kmPct}%
+        <button class="syncicon" onclick="checkCompleted()" aria-label="${t('checkCompleted')}" title="${t('checkCompleted')}">🔄</button>
+      </span>
+    </div>
   </div>` : ''}
 
   <div class="weeknav">
@@ -1252,6 +1261,24 @@ function profileSheet(){
         <div class="field"><label>${t('raceDist')}</label><input class="mono" inputmode="decimal" value="${rd.km}" oninput="raceDraftField('km',this.value)"></div>
       </div>
       <button class="addblk" style="margin-bottom:0" onclick="addRace()">${t('addRace')}</button>
+    </div>
+
+    <div class="drawersec">
+      <div class="minilbl">${t('secPrefs')}</div>
+      <div class="field">
+        <label>${t('languageLabel')}</label>
+        <div class="toggle">
+          <button class="${S.lang==='he'?'on':''}" onclick="setLang('he')">עברית</button>
+          <button class="${S.lang==='en'?'on':''}" onclick="setLang('en')">English</button>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label>${t('themeLabel')}</label>
+        <div class="toggle">
+          <button class="${S.theme==='dark'?'on':''}" onclick="setTheme('dark')">🌙 ${t('darkWord')}</button>
+          <button class="${S.theme==='light'?'on':''}" onclick="setTheme('light')">☀️ ${t('lightWord')}</button>
+        </div>
+      </div>
     </div>
 
     <div class="drawersec">
@@ -1622,14 +1649,20 @@ async function autoCheckCompleted(){
   }catch(e){ /* best-effort - the manual button still works if this fails */ }
 }
 
-/* ---- swipe between weeks ---- */
+/* ---- swipe through days (rolls into the next/previous week at the edges) ---- */
 function attachSwipe(){
   const el=document.getElementById('strip'); if(!el) return;
   let x0=null,y0=null;
   el.addEventListener('touchstart',e=>{x0=e.touches[0].clientX; y0=e.touches[0].clientY;},{passive:true});
   el.addEventListener('touchend',e=>{
     if(x0==null) return; const dx=e.changedTouches[0].clientX-x0, dy=e.changedTouches[0].clientY-y0;
-    if(Math.abs(dx)>50 && Math.abs(dx)>Math.abs(dy)){ nav(dx<0?1:-1); } // RTL: swipe left -> next week
+    if(Math.abs(dx)>50 && Math.abs(dx)>Math.abs(dy)){
+      const dir=dx<0?1:-1; // RTL: swipe left -> forward in time
+      let sel=S.sel+dir;
+      if(sel>6){ S.offset++; sel=0; }
+      else if(sel<0){ S.offset--; sel=6; }
+      S.sel=sel; render();
+    }
     x0=y0=null;
   },{passive:true});
 }
