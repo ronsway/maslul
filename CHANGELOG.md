@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.14 - 2026-08-21 14:42 - Deploy
+
 ## v1.0.13 - 2026-08-21 14:36 - Smarter units drill-in settings whole-screen swipe
 
 ## v1.0.12 - 2026-08-21 14:23 - Deploy
