@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.43 - 2026-08-22 11:46 - single name field per language
+
 ## v1.0.42 - 2026-08-22 11:43 - Deploy
 
 ## v1.0.41 - 2026-08-22 11:40 - separate Hebrew/English profile name
