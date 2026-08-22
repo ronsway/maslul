@@ -127,7 +127,6 @@
   .kmbar .track{height:10px; border-radius:6px; background:var(--panel); border:1px solid var(--line); overflow:hidden;}
   .kmbar .fill{height:100%; background:linear-gradient(90deg,var(--work),var(--warm)); border-radius:6px; transition:width .3s ease;}
   .kmbar .lbl{display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-top:6px;}
-  .synclink{display:block; margin-top:8px; font-size:12px; color:var(--easy); font-weight:700; text-decoration:underline;}
   .syncicon{display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px;
     border-radius:50%; background:var(--panel2); border:1px solid var(--line); font-size:11px; flex:none;}
   .syncicon:active{background:var(--panel);}
@@ -180,11 +179,16 @@
   .racesumval.slower{color:var(--work);}
   .racesumlbl{font-size:10px; color:var(--muted); margin-top:3px; text-transform:uppercase; letter-spacing:.03em;}
   .racesplits{display:flex; flex-direction:column;}
-  .racesplitrow{display:grid; grid-template-columns:20px 1fr 1fr 1fr auto; gap:6px; align-items:center;
-    font-size:12.5px; padding:6px 2px; border-bottom:1px solid var(--line);}
+  .racesplitrow{display:grid; grid-template-columns:26px 1fr 1fr 1fr 1fr auto; gap:5px; align-items:center;
+    font-size:11.5px; padding:6px 2px; border-bottom:1px solid var(--line);}
   .racesplitrow:last-child{border-bottom:none;}
-  .racesplitrow .i{color:var(--muted); font-size:11px;}
-  .racesplitrow .v{font-family:'JetBrains Mono'; font-weight:600; color:var(--txt);}
+  .racesplitrow .i{color:var(--muted); font-size:11px; white-space:nowrap;}
+  .racesplitrow .v{font-family:'JetBrains Mono'; font-weight:600; color:var(--txt); font-size:11.5px;}
+  .racesplitrow.head{padding-bottom:8px; border-bottom:1px solid var(--line);}
+  .racesplitrow.head .i, .racesplitrow.head .v{font-family:'Assistant'; font-weight:700; font-size:9.5px;
+    color:var(--muted); text-transform:uppercase; letter-spacing:.03em;}
+  .racesplitrow.finish{background:var(--type-on-bg); border-radius:8px; margin-top:2px; border-bottom:none;}
+  .racesplitrow.finish .i{color:var(--txt); font-weight:700;}
   .zonepill{font-size:9px; font-weight:800; padding:3px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:.03em; flex:none;}
   .zonepill.easy{background:rgba(95,176,255,.15); color:var(--easy);}
   .zonepill.target{background:rgba(245,184,69,.15); color:var(--warm);}
@@ -608,6 +612,11 @@ const T={
   zoneTarget:{he:'יעד', en:'Target'},
   zonePush:{he:'דחיפה', en:'Push'},
   avgPaceWord:{he:'קצב ממוצע', en:'Avg pace'},
+  splitHeader:{he:'פצל', en:'Split'},
+  splitTimeHeader:{he:'זמן', en:'Time'},
+  elapsedHeader:{he:'מצטבר', en:'Elapsed'},
+  zoneHeader:{he:'אזור', en:'Zone'},
+  finishWord:{he:'סיום', en:'Finish'},
   jumpToDate:{he:'קפוץ לתאריך', en:'Jump to date'},
   negativeSplit:{he:'שלילי', en:'Negative'},
   evenSplit:{he:'אחיד', en:'Even'},
@@ -903,21 +912,34 @@ function raceSplitSummary(w){
 /* per-km split rows for a race with a target time: pace, cumulative elapsed
    time, and an effort zone tag - this is the plan the runner actually follows */
 function renderRaceSplits(w){
-  let elapsed=0;
+  let elapsed=0, cumDist=0;
   const n=w.blocks.length;
   const rows=w.blocks.map((b,i)=>{
-    elapsed+=raceSplitSecs(b);
+    const splitSecs=raceSplitSecs(b);
+    elapsed+=splitSecs; cumDist+=b.value;
+    const isLast=i===n-1;
     const zone=raceSplitZone(i,n,w.raceSplit||'negative');
     const zoneKey='zone'+zone.charAt(0).toUpperCase()+zone.slice(1);
-    return `<div class="racesplitrow">
-      <span class="i mono">${i+1}</span>
-      <span class="v">${fmtKm(b.value)}</span>
-      <span class="v mono">${b.pace? mmss(b.pace)+'/'+t('kmShort') : '—'}</span>
+    return `<div class="racesplitrow${isLast?' finish':''}">
+      <span class="i mono" title="${isLast?t('finishWord'):''}">${isLast?'🏁':i+1}</span>
+      <span class="v mono">${fmtKm(cumDist)}</span>
+      <span class="v mono">${mmss(splitSecs)}</span>
       <span class="v mono">${mmss(elapsed)}</span>
+      <span class="v mono">${b.pace? mmss(b.pace)+'/'+t('kmShort') : '—'}</span>
       <span class="zonepill ${zone}">${t(zoneKey)}</span>
     </div>`;
   }).join('');
-  return `<div class="racesplits">${rows}</div>`;
+  return `<div class="racesplits">
+    <div class="racesplitrow head">
+      <span class="i">${t('splitHeader')}</span>
+      <span class="v">${t('distanceLabel')}</span>
+      <span class="v">${t('splitTimeHeader')}</span>
+      <span class="v">${t('elapsedHeader')}</span>
+      <span class="v">${t('paceLabel')}</span>
+      <span class="v">${t('zoneHeader')}</span>
+    </div>
+    ${rows}
+  </div>`;
 }
 
 /* ============ state ============ */
@@ -1210,7 +1232,7 @@ function render(){
   <div class="detail">
     ${renderDay(selDate)}
     <button class="addbtn" onclick="openEditor()"><span class="p">+</span> ${t('addWorkout')}</button>
-    ${dayHasWorkouts?`<button class="synclink" style="text-align:center; width:100%" onclick="openSendDay()">${t('sendThisDay')}</button>`:''}
+    ${dayHasWorkouts?`<button class="addbtn" style="margin-top:8px" onclick="openSendDay()">${t('sendThisDay')}</button>`:''}
   </div>
 
   <div class="sendbar">
