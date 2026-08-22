@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.45 - 2026-08-22 11:54 - race split table columns, send-day button
+
 ## v1.0.44 - 2026-08-22 11:49 - Deploy
 
 ## v1.0.43 - 2026-08-22 11:46 - single name field per language
