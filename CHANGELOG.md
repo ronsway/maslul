@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.27 - 2026-08-22 08:29 - Promote races to header always show split strategy add jump-to-date
+
 ## v1.0.26 - 2026-08-22 08:19 - Deploy
 
 ## v1.0.25 - 2026-08-21 15:56 - Target-time planning in Settings Races fix race card mobile layout
