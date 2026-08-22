@@ -551,6 +551,7 @@ const T={
   meterShort:{he:'מ׳', en:'m'},
   kmShort:{he:'ק״מ', en:'km'},
   backToToday:{he:'חזרה להיום', en:'Back to today'},
+  todayWord:{he:'היום', en:'Today'},
   doneWord:{he:'בוצע', en:'Done'},
   markDone:{he:'סמן כבוצע', en:'Mark done'},
   weeklyKm:{he:'ק״מ השבוע', en:'km this week'},
@@ -1412,7 +1413,10 @@ function monthPickSheet(){
         return `<button class="${cls.join(' ')}" onclick="dateJumpPickMonth(${i})">${mn}</button>`;
       }).join('')}
     </div>
-    <button class="ghost" onclick="closeSheet()" style="margin-top:16px">${t('close')}</button>
+    <div style="display:flex; gap:8px; margin-top:16px">
+      <button class="ghost" style="margin:0; flex:1" onclick="dateJumpPick('${ymd(new Date())}')">${t('todayWord')}</button>
+      <button class="ghost" style="margin:0; flex:1" onclick="closeSheet()">${t('close')}</button>
+    </div>
   </div></div>`;
 }
 function dayPickSheet(){
@@ -1461,7 +1465,10 @@ function dayPickSheet(){
         </button>`;
       }).join('')}
     </div>
-    <button class="ghost" onclick="closeSheet()" style="margin-top:16px">${t('close')}</button>
+    <div style="display:flex; gap:8px; margin-top:16px">
+      <button class="ghost" style="margin:0; flex:1" onclick="dateJumpPick('${todayStr}')">${t('todayWord')}</button>
+      <button class="ghost" style="margin:0; flex:1" onclick="closeSheet()">${t('close')}</button>
+    </div>
   </div></div>`;
 }
 
