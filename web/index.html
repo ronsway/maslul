@@ -530,8 +530,7 @@ const T={
   darkWord:{he:'כהה', en:'Dark'},
   lightWord:{he:'בהיר', en:'Light'},
   secAccount:{he:'חשבון', en:'Account'},
-  nameHe:{he:'שם (עברית)', en:'Name (Hebrew)'},
-  nameEn:{he:'שם (אנגלית)', en:'Name (English)'},
+  name:{he:'שם', en:'Name'},
   maxHR:{he:'דופק מקסימלי', en:'Max heart rate'},
   restHR:{he:'דופק מנוחה', en:'Resting heart rate'},
   thrPace:{he:'קצב סף (דק׳/ק״מ)', en:'Threshold pace (min/km)'},
@@ -1762,14 +1761,13 @@ function profileSheet(){
           ${p.photo?`<img src="${p.photo}">`:initial}
           <span class="avatarbadge">✎</span>
         </button>
-        <div style="flex:1; display:flex; flex-direction:column; gap:8px">
-          <input value="${p.nameHe||''}" placeholder="${t('nameHe')}" dir="rtl" oninput="S.profile.nameHe=this.value"
-            style="background:var(--panel); border:1px solid var(--line); color:var(--txt);
-            border-radius:12px; padding:12px; font-family:'Assistant'; font-size:15px;">
-          <input value="${p.nameEn||''}" placeholder="${t('nameEn')}" dir="ltr" oninput="S.profile.nameEn=this.value"
-            style="background:var(--panel); border:1px solid var(--line); color:var(--txt);
-            border-radius:12px; padding:12px; font-family:'Assistant'; font-size:15px;">
-        </div>
+        ${S.lang==='he'
+          ? `<input value="${p.nameHe||''}" placeholder="${t('name')}" dir="rtl" oninput="S.profile.nameHe=this.value"
+              style="flex:1; background:var(--panel); border:1px solid var(--line); color:var(--txt);
+              border-radius:12px; padding:12px; font-family:'Assistant'; font-size:15px;">`
+          : `<input value="${p.nameEn||''}" placeholder="${t('name')}" dir="ltr" oninput="S.profile.nameEn=this.value"
+              style="flex:1; background:var(--panel); border:1px solid var(--line); color:var(--txt);
+              border-radius:12px; padding:12px; font-family:'Assistant'; font-size:15px;">`}
       </div>
       ${S.sheet.photoMenuOpen? `<div style="display:flex; flex-direction:column; gap:8px; margin-bottom:18px">
           <input type="file" accept="image/*" id="photoInput" style="display:none" onchange="onPhotoFile(this)">
