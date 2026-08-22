@@ -1104,6 +1104,20 @@ function render(){
   // resets its scroll position to 0 - save/restore it so clicking a toggle deep in
   // a long editor sheet doesn't snap the view back to the top.
   const prevScroll=document.querySelector('.sheet, .drawer')?.scrollTop;
+  // same innerHTML replacement also drops focus off whatever input the user is
+  // mid-typing into (any oninput handler that needs a live re-render - e.g. a
+  // distance/target field driving chip highlights - would otherwise lose focus
+  // after every single keystroke). Save the focused input's position among its
+  // siblings and restore focus+caret on the recreated node after re-rendering.
+  const activeEl=document.activeElement;
+  let focusInfo=null;
+  if(activeEl && (activeEl.tagName==='INPUT'||activeEl.tagName==='TEXTAREA')){
+    const container=activeEl.closest('.sheet, .drawer');
+    if(container){
+      const all=[...container.querySelectorAll('input, textarea')];
+      focusInfo={index:all.indexOf(activeEl), selStart:activeEl.selectionStart, selEnd:activeEl.selectionEnd};
+    }
+  }
   if(!AUTH.ready){ app.innerHTML=loadingScreen(); return; }
   if(!AUTH.session){ app.innerHTML=loginScreen(); return; }
   const wk=weekDates(S.offset);
@@ -1195,6 +1209,11 @@ function render(){
   ${renderSheet()}`;
 
   if(prevScroll){ const s=document.querySelector('.sheet, .drawer'); if(s) s.scrollTop=prevScroll; }
+  if(focusInfo && focusInfo.index>=0){
+    const container=document.querySelector('.sheet, .drawer');
+    const el=container? [...container.querySelectorAll('input, textarea')][focusInfo.index] : null;
+    if(el){ el.focus(); try{ el.setSelectionRange(focusInfo.selStart, focusInfo.selEnd); }catch(e){} }
+  }
 }
 
 function renderDay(date){
