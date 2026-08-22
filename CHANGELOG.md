@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.34 - 2026-08-22 09:22 - Deploy
+
 ## v1.0.33 - 2026-08-22 09:19 - center date-jump dialog
 
 ## v1.0.32 - 2026-08-22 09:15 - fix date-jump sheet spacing and duplicate add-race label
