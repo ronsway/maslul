@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.26 - 2026-08-22 08:19 - Deploy
+
 ## v1.0.25 - 2026-08-21 15:56 - Target-time planning in Settings Races fix race card mobile layout
 
 ## v1.0.24 - 2026-08-21 15:47 - Race target-time planner fix race card overflow feature races on settings hub
