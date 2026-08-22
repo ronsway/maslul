@@ -216,6 +216,10 @@
   @supports (height: 100dvh){
     .sheet{min-height:82dvh; max-height:92dvh;}
   }
+  .sheet.compact{min-height:0;}
+  @supports (height: 100dvh){
+    .sheet.compact{min-height:0;}
+  }
   @keyframes up{from{transform:translateY(30px); opacity:.4;} to{transform:none; opacity:1;}}
   .grab{width:40px; height:4px; background:var(--line); border-radius:3px; margin:8px auto 12px;}
   .sheet h2{font-family:'Rubik'; font-weight:800; font-size:20px; margin:2px 0 16px;}
@@ -573,6 +577,8 @@ const T={
   raceDist:{he:'מרחק (ק״מ)', en:'Distance (km)'},
   addRace:{he:'+ הוסף תחרות', en:'+ Add race'},
   updateRace:{he:'עדכן תחרות', en:'Update race'},
+  raceFormNew:{he:'תחרות חדשה', en:'New race'},
+  raceFormEdit:{he:'עריכת תחרות', en:'Edit race'},
   noRaces:{he:'אין תחרויות מוגדרות', en:'No races added yet'},
   raceNeedsFields:{he:'הזן תאריך ושם תחרות', en:'Enter a date and race name'},
   searchRaceInfo:{he:'חפש מידע', en:'Search info'},
@@ -1329,7 +1335,7 @@ function monthPickSheet(){
   const todayY=new Date().getFullYear(), todayM=new Date().getMonth();
   const selDate=weekDates(S.offset)[S.sel];
   const prevArrow=S.lang==='he'?'›':'‹', nextArrow=S.lang==='he'?'‹':'›';
-  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
+  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet compact">
     <div class="grab"></div>
     <h2 class="disp">${t('jumpToDate')}</h2>
     <div class="calnav">
@@ -1373,7 +1379,7 @@ function dayPickSheet(){
     cells.push({d:nextDay++, y, m, muted:true});
   }
 
-  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
+  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet compact">
     <div class="grab"></div>
     <h2 class="disp">${t('jumpToDate')}</h2>
     <div class="calnav">
@@ -1832,7 +1838,7 @@ function racesSheet(){
         </div>`;
       }).join('')
       : `<div class="note" style="margin-bottom:10px">${t('noRaces')}</div>`}
-    <div class="minilbl" style="margin-bottom:8px">${S.sheet.editingRaceId? t('updateRace') : t('addRace')}</div>
+    <div class="minilbl" style="margin-bottom:8px">${S.sheet.editingRaceId? t('raceFormEdit') : t('raceFormNew')}</div>
     <div class="field"><label>${t('raceName')}</label><input value="${rd.name}" oninput="raceDraftField('name',this.value)"></div>
     <div class="row2">
       <div class="field"><label>${t('raceDate')}</label><input class="mono" dir="ltr" type="date" value="${rd.date}" oninput="raceDraftField('date',this.value)"></div>
