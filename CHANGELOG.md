@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.36 - 2026-08-22 09:32 - move week-nav year, back-to-today icon
+
 ## v1.0.35 - 2026-08-22 09:28 - redesign add race form
 
 ## v1.0.34 - 2026-08-22 09:22 - Deploy
