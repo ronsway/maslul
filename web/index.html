@@ -150,7 +150,14 @@
 
   /* ---- jump-to-date calendar ---- */
   .calnav{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;}
-  .caltitle{font-weight:700; font-size:16px;}
+  .caltitle{font-weight:700; font-size:16px; padding:6px 12px; border-radius:10px;}
+  .caltitle:active{background:var(--panel2);}
+  .monthgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+  .monthcell{padding:16px 4px; border-radius:12px; background:var(--panel); border:1px solid var(--line);
+    font-family:'Rubik'; font-weight:700; font-size:14px; color:var(--txt); text-align:center;}
+  .monthcell:active{background:var(--panel2);}
+  .monthcell.today{border-color:var(--warm); color:var(--warm);}
+  .monthcell.sel{border-color:var(--work); background:var(--type-on-bg); color:var(--work);}
   .calgrid{display:grid; grid-template-columns:repeat(7,1fr); row-gap:2px;}
   .calcell{aspect-ratio:1; display:flex; align-items:center; justify-content:center; position:relative;}
   .calcell.dow{font-family:'Assistant'; font-weight:700; font-size:10.5px; letter-spacing:.03em; text-transform:uppercase;
@@ -1311,6 +1318,37 @@ function statsSheet(){
 /* custom calendar for "jump to date" - a native <input type=date> picker can't
    be restyled to match the app's theme, so this is a small in-app month grid instead */
 function dateJumpSheet(){
+  return S.sheet.calView==='months'? monthPickSheet() : dayPickSheet();
+}
+/* tapping the month/year title drops into this year-at-a-time month grid -
+   reaching a distant date by only clicking the day-view's month arrows would
+   take dozens of taps, this gets there in two: pick the year, pick the month */
+function monthPickSheet(){
+  const {viewYear}=S.sheet;
+  const M=MONTHS_I18N[S.lang];
+  const todayY=new Date().getFullYear(), todayM=new Date().getMonth();
+  const selDate=weekDates(S.offset)[S.sel];
+  const prevArrow=S.lang==='he'?'›':'‹', nextArrow=S.lang==='he'?'‹':'›';
+  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
+    <div class="grab"></div>
+    <h2 class="disp">${t('jumpToDate')}</h2>
+    <div class="calnav">
+      <button class="navbtn" onclick="dateJumpYearNav(-1)">${prevArrow}</button>
+      <div class="caltitle disp">${viewYear}</div>
+      <button class="navbtn" onclick="dateJumpYearNav(1)">${nextArrow}</button>
+    </div>
+    <div class="monthgrid">
+      ${M.map((mn,i)=>{
+        const cls=['monthcell'];
+        if(viewYear===todayY && i===todayM) cls.push('today');
+        if(viewYear===selDate.getFullYear() && i===selDate.getMonth()) cls.push('sel');
+        return `<button class="${cls.join(' ')}" onclick="dateJumpPickMonth(${i})">${mn}</button>`;
+      }).join('')}
+    </div>
+    <button class="ghost" onclick="closeSheet()" style="margin-top:16px">${t('close')}</button>
+  </div></div>`;
+}
+function dayPickSheet(){
   const {viewYear, viewMonth}=S.sheet;
   const startDow=new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth=new Date(viewYear, viewMonth+1, 0).getDate();
@@ -1340,7 +1378,7 @@ function dateJumpSheet(){
     <h2 class="disp">${t('jumpToDate')}</h2>
     <div class="calnav">
       <button class="navbtn" onclick="dateJumpNav(-1)">${prevArrow}</button>
-      <div class="caltitle disp">${M[viewMonth]} ${viewYear}</div>
+      <button class="caltitle disp" onclick="dateJumpToggleView()">${M[viewMonth]} ${viewYear}</button>
       <button class="navbtn" onclick="dateJumpNav(1)">${nextArrow}</button>
     </div>
     <div class="calgrid">
@@ -1836,6 +1874,9 @@ function dateJumpNav(dir){
   S.sheet.viewYear=viewYear; S.sheet.viewMonth=viewMonth;
   render();
 }
+function dateJumpToggleView(){ S.sheet.calView = S.sheet.calView==='months'? 'days' : 'months'; render(); }
+function dateJumpYearNav(dir){ S.sheet.viewYear+=dir; render(); }
+function dateJumpPickMonth(m){ S.sheet.viewMonth=m; S.sheet.calView='days'; render(); }
 function dateJumpPick(dateStr){
   const target=new Date(dateStr+'T00:00:00');
   const targetSunday=new Date(target); targetSunday.setDate(target.getDate()-target.getDay());
