@@ -69,7 +69,6 @@
   /* ---- week nav ---- */
   .weeknav{display:flex; align-items:center; justify-content:space-between; padding:6px 18px 4px;}
   .weeknav .rng{font-family:'Rubik'; font-weight:700; font-size:15px;}
-  .weeknav .sub{color:var(--muted); font-size:12px; margin-top:1px; min-height:15px;}
   .navbtn{width:34px; height:34px; border-radius:10px; background:var(--panel);
     border:1px solid var(--line); display:grid; place-items:center; color:var(--muted); font-size:18px;
     direction:ltr; unicode-bidi:isolate;}
@@ -480,7 +479,6 @@ const MONTHS_I18N={
 const T={
   gateSub:{he:'תוכנית האימונים שלך, מסונכרנת בין כל המכשירים. התחבר עם חשבון Google כדי להמשיך.', en:'Your training plan, synced across all your devices. Sign in with Google to continue.'},
   googleSignIn:{he:'התחבר עם Google', en:'Sign in with Google'},
-  thisWeek:{he:'השבוע', en:'This week'},
   addWorkout:{he:'הוסף אימון ליום זה', en:'Add workout for this day'},
   sendWeek:{he:'שלח שבוע לגרמין', en:'Send week to Garmin'},
   emptySub:{he:'בחר סוג אימון והגדר חימום, מקטעים ושחרור', en:'Choose a workout type and set warmup, segments and cooldown'},
@@ -1166,7 +1164,7 @@ function render(){
     <button class="navbtn" onclick="nav(-1)">${prevArrow}</button>
     <div style="text-align:center">
       <div class="rng disp" style="display:flex; align-items:center; justify-content:center; gap:7px">
-        <span class="mono">${rng} ${yr}</span>
+        ${rng} <span class="mono">${yr}</span>
         <button class="raceiconbtn" onclick="openDateJump()" aria-label="${t('jumpToDate')}" title="${t('jumpToDate')}">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>
         </button>
@@ -1174,7 +1172,6 @@ function render(){
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/></svg>
         </button>` : ''}
       </div>
-      <div class="sub mono">${S.offset===0? t('thisWeek') : ''}</div>
     </div>
     <button class="navbtn" onclick="nav(1)">${nextArrow}</button>
   </div>
