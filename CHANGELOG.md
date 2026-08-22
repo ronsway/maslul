@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.40 - 2026-08-22 11:25 - Deploy
+
 ## v1.0.39 - 2026-08-22 11:23 - numeric DD/MM week date range
 
 ## v1.0.38 - 2026-08-22 11:07 - remove week-nav sub-line, fix RTL date range
