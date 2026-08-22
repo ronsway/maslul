@@ -448,11 +448,15 @@ async function loadCloudData(userId){
   const {data}=await sb.from('user_data').select('plan, profile').eq('user_id',userId).maybeSingle();
   if(data){
     S.plan=data.plan||{};
-    S.profile=Object.assign({name:'',maxHR:'',restHR:'',thrPace:'',races:[],photo:''}, data.profile||{});
+    S.profile=Object.assign({nameHe:'',nameEn:'',maxHR:'',restHR:'',thrPace:'',races:[],photo:''}, data.profile||{});
+    migrateProfileName(S.profile);
     store.set('plan',S.plan); store.set('profile',S.profile);
   } else {
     const meta=AUTH.session?.user?.user_metadata||{};
-    if(!S.profile.name) S.profile.name=meta.full_name||meta.name||'';
+    if(!S.profile.nameHe && !S.profile.nameEn){
+      const gname=meta.full_name||meta.name||'';
+      S.profile.nameHe=gname; S.profile.nameEn=gname;
+    }
     if(!S.profile.photo) S.profile.photo=meta.avatar_url||meta.picture||'';
     await sb.from('user_data').upsert({user_id:userId, plan:S.plan, profile:S.profile});
   }
@@ -526,7 +530,8 @@ const T={
   darkWord:{he:'כהה', en:'Dark'},
   lightWord:{he:'בהיר', en:'Light'},
   secAccount:{he:'חשבון', en:'Account'},
-  name:{he:'שם', en:'Name'},
+  nameHe:{he:'שם (עברית)', en:'Name (Hebrew)'},
+  nameEn:{he:'שם (אנגלית)', en:'Name (English)'},
   maxHR:{he:'דופק מקסימלי', en:'Max heart rate'},
   restHR:{he:'דופק מנוחה', en:'Resting heart rate'},
   thrPace:{he:'קצב סף (דק׳/ק״מ)', en:'Threshold pace (min/km)'},
@@ -922,9 +927,21 @@ let S={
   lang: store.get('lang','he'),
   theme: store.get('theme','dark'),
   plan: store.get('plan',{}),
-  profile: store.get('profile',{name:'', maxHR:'', restHR:'', thrPace:'', races:[], photo:''}),
+  profile: store.get('profile',{nameHe:'', nameEn:'', maxHR:'', restHR:'', thrPace:'', races:[], photo:''}),
   sheet:null, // {mode:'edit'|'send', draft, editIndex}
 };
+/* older saved profiles only had a single `name` field - split it into both
+   languages once so nothing gets silently blanked out for existing users */
+function migrateProfileName(p){
+  if(p.nameHe==null && p.nameEn==null && p.name){ p.nameHe=p.name; p.nameEn=p.name; }
+  if(p.nameHe==null) p.nameHe='';
+  if(p.nameEn==null) p.nameEn='';
+  delete p.name;
+  return p;
+}
+migrateProfileName(S.profile);
+/* current-language display name, falling back to the other language if only one is set */
+function profileName(p){ return S.lang==='he'? (p.nameHe||p.nameEn||'') : (p.nameEn||p.nameHe||''); }
 function save(){
   store.set('plan',S.plan); store.set('profile',S.profile);
   // supabase-js query builders are lazy "thenables" - the request is only actually
@@ -1122,7 +1139,7 @@ function render(){
   const selDate=wk[S.sel];
   const rng=`${pad(wk[0].getDate())}/${pad(wk[0].getMonth()+1)}-${pad(wk[6].getDate())}/${pad(wk[6].getMonth()+1)}`;
   const yr=wk[6].getFullYear();
-  const initials=(S.profile.name||'?').trim().charAt(0)||'?';
+  const initials=(profileName(S.profile)||'?').trim().charAt(0)||'?';
   const weekHasWorkouts = wk.some(d=>dayWorkouts(d).length);
   const dayHasWorkouts = dayWorkouts(selDate).length>0;
   const prevArrow=S.lang==='he'?'›':'‹', nextArrow=S.lang==='he'?'‹':'›';
@@ -1732,7 +1749,7 @@ function sheetEntering(){ const e=!S.sheet.entered; S.sheet.entered=true; return
 function profileSheet(){
   const p=S.profile;
   const googleAvatar=AUTH.session?.user?.user_metadata?.avatar_url||AUTH.session?.user?.user_metadata?.picture||'';
-  const initial=(p.name||'?').trim().charAt(0).toUpperCase()||'?';
+  const initial=(profileName(p)||'?').trim().charAt(0).toUpperCase()||'?';
   const side=S.lang==='he'?'side-right':'side-left';
   const closing=S.sheet.closing?' closing':'';
   return `<div class="drawerscrim${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${sheetEntering()}${closing}">
@@ -1745,9 +1762,14 @@ function profileSheet(){
           ${p.photo?`<img src="${p.photo}">`:initial}
           <span class="avatarbadge">✎</span>
         </button>
-        <input value="${p.name||''}" placeholder="${t('name')}" oninput="S.profile.name=this.value"
-          style="flex:1; background:var(--panel); border:1px solid var(--line); color:var(--txt);
-          border-radius:12px; padding:12px; font-family:'Assistant'; font-size:15px;">
+        <div style="flex:1; display:flex; flex-direction:column; gap:8px">
+          <input value="${p.nameHe||''}" placeholder="${t('nameHe')}" dir="rtl" oninput="S.profile.nameHe=this.value"
+            style="background:var(--panel); border:1px solid var(--line); color:var(--txt);
+            border-radius:12px; padding:12px; font-family:'Assistant'; font-size:15px;">
+          <input value="${p.nameEn||''}" placeholder="${t('nameEn')}" dir="ltr" oninput="S.profile.nameEn=this.value"
+            style="background:var(--panel); border:1px solid var(--line); color:var(--txt);
+            border-radius:12px; padding:12px; font-family:'Assistant'; font-size:15px;">
+        </div>
       </div>
       ${S.sheet.photoMenuOpen? `<div style="display:flex; flex-direction:column; gap:8px; margin-bottom:18px">
           <input type="file" accept="image/*" id="photoInput" style="display:none" onchange="onPhotoFile(this)">
@@ -2256,7 +2278,7 @@ function buildPayload(){
            work:{mode:b.work.mode, value:b.work.value},
            recovery:{mode:b.recovery.mode, value:b.recovery.value}} ) });
   }));
-  return { athlete:{ name:S.profile.name, maxHR:S.profile.maxHR, restHR:S.profile.restHR }, workouts };
+  return { athlete:{ name:profileName(S.profile), maxHR:S.profile.maxHR, restHR:S.profile.restHR }, workouts };
 }
 function openSendWeek(){ S.sheet={mode:'send', payload:null, result:null, dates:weekDates(S.offset)}; render(); }
 function openSendDay(){ S.sheet={mode:'send', payload:null, result:null, dates:[weekDates(S.offset)[S.sel]]}; render(); }
