@@ -148,6 +148,19 @@
   .statsbars .fill{width:100%; background:linear-gradient(180deg,var(--warm),var(--work));}
   .statsbars .wk{font-size:8px; color:var(--muted2); margin-top:5px; writing-mode:horizontal-tb;}
 
+  /* ---- jump-to-date calendar ---- */
+  .calnav{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
+  .caltitle{font-weight:700; font-size:17px;}
+  .calgrid{display:grid; grid-template-columns:repeat(7,1fr); gap:5px;}
+  .calcell{aspect-ratio:1; display:flex; align-items:center; justify-content:center; border-radius:10px;
+    font-family:'JetBrains Mono'; font-weight:600; font-size:13px; color:var(--txt);}
+  .calcell.dow{font-family:'Assistant'; font-weight:700; font-size:11px; color:var(--muted); aspect-ratio:auto; padding-bottom:6px;}
+  .calcell.day{background:var(--panel2); border:1px solid var(--line);}
+  .calcell.day:active{background:var(--panel);}
+  .calcell.day.today{color:var(--warm); border-color:var(--warm);}
+  .calcell.day.sel{border-color:var(--work); background:var(--type-on-bg); color:var(--work); font-weight:800;}
+  .calcell.empty{background:none;}
+
   .addbtn{width:100%; padding:14px; border-radius:15px; background:var(--panel);
     border:1px solid var(--line); font-family:'Rubik'; font-weight:700; font-size:15px;
     color:var(--txt); display:flex; align-items:center; justify-content:center; gap:8px;}
@@ -1039,7 +1052,6 @@ function render(){
         <button class="raceiconbtn" onclick="openDateJump()" aria-label="${t('jumpToDate')}" title="${t('jumpToDate')}">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>
         </button>
-        <input type="date" id="datejump" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" onchange="jumpToDate(this.value)">
       </div>
       ${S.offset===0
         ? `<div class="sub mono">${yr} ${t('thisWeek')}</div>`
@@ -1150,6 +1162,7 @@ function renderSheet(){
   if(S.sheet.mode==='races') return racesSheet();
   if(S.sheet.mode==='generate') return S.sheet.step==='preview'? generatePreviewSheet() : generateConfigSheet();
   if(S.sheet.mode==='stats') return statsSheet();
+  if(S.sheet.mode==='datejump') return dateJumpSheet();
   if(S.sheet.mode==='run') return runSheet();
   return `<div class="scrim"></div>`;
 }
@@ -1207,6 +1220,39 @@ function statsSheet(){
     </div>
     <div class="note" style="margin-top:10px">${t('statsLegend')}</div>
 
+    <button class="ghost" onclick="closeSheet()" style="margin-top:16px">${t('close')}</button>
+  </div></div>`;
+}
+
+/* custom calendar for "jump to date" - a native <input type=date> picker can't
+   be restyled to match the app's theme, so this is a small in-app month grid instead */
+function dateJumpSheet(){
+  const {viewYear, viewMonth}=S.sheet;
+  const first=new Date(viewYear, viewMonth, 1);
+  const startDow=first.getDay();
+  const daysInMonth=new Date(viewYear, viewMonth+1, 0).getDate();
+  const todayStr=ymd(new Date());
+  const selDateStr=ymd(weekDates(S.offset)[S.sel]);
+  const M=MONTHS_I18N[S.lang];
+  const prevArrow=S.lang==='he'?'›':'‹', nextArrow=S.lang==='he'?'‹':'›';
+  const cells=[]; for(let i=0;i<startDow;i++) cells.push(null);
+  for(let d=1; d<=daysInMonth; d++) cells.push(d);
+  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
+    <div class="grab"></div>
+    <h2 class="disp">${t('jumpToDate')}</h2>
+    <div class="calnav">
+      <button class="navbtn" onclick="dateJumpNav(-1)">${prevArrow}</button>
+      <div class="caltitle disp">${M[viewMonth]} ${viewYear}</div>
+      <button class="navbtn" onclick="dateJumpNav(1)">${nextArrow}</button>
+    </div>
+    <div class="calgrid">
+      ${DAYS[S.lang].map(dn=>`<div class="calcell dow">${dn}</div>`).join('')}
+      ${cells.map(d=>{
+        if(d==null) return `<div class="calcell empty"></div>`;
+        const dateStr=viewYear+'-'+pad(viewMonth+1)+'-'+pad(d);
+        return `<button class="calcell day${dateStr===todayStr?' today':''}${dateStr===selDateStr?' sel':''}" onclick="dateJumpPick('${dateStr}')">${d}</button>`;
+      }).join('')}
+    </div>
     <button class="ghost" onclick="closeSheet()" style="margin-top:16px">${t('close')}</button>
   </div></div>`;
 }
@@ -1673,17 +1719,25 @@ function nav(dir){ S.offset+=dir; render(); }
 function pick(i){ S.sel=i; render(); }
 function goToToday(){ S.offset=0; S.sel=new Date().getDay(); render(); }
 function openDateJump(){
-  const input=document.getElementById('datejump');
-  if(input.showPicker){ try{ input.showPicker(); return; }catch(e){} }
-  input.click();
+  if(S.sheet && S.sheet.mode==='datejump') return;
+  const d=weekDates(S.offset)[S.sel];
+  S.sheet={mode:'datejump', viewYear:d.getFullYear(), viewMonth:d.getMonth()};
+  render();
 }
-function jumpToDate(v){
-  if(!v) return;
-  const target=new Date(v+'T00:00:00');
+function dateJumpNav(dir){
+  let {viewYear, viewMonth}=S.sheet;
+  viewMonth+=dir;
+  if(viewMonth<0){ viewMonth=11; viewYear--; }
+  else if(viewMonth>11){ viewMonth=0; viewYear++; }
+  S.sheet.viewYear=viewYear; S.sheet.viewMonth=viewMonth;
+  render();
+}
+function dateJumpPick(dateStr){
+  const target=new Date(dateStr+'T00:00:00');
   const targetSunday=new Date(target); targetSunday.setDate(target.getDate()-target.getDay());
   S.offset=Math.round((targetSunday-startOfWeek(0))/(7*86400000));
   S.sel=target.getDay();
-  render();
+  closeSheet();
 }
 // guarded so a second rapid trigger of the same open-action (e.g. a duplicate
 // touch/click pair firing close together on some devices) reuses the sheet
