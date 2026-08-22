@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.28 - 2026-08-22 08:38 - Custom-themed calendar for jump-to-date instead of native picker
+
 ## v1.0.27 - 2026-08-22 08:29 - Promote races to header always show split strategy add jump-to-date
 
 ## v1.0.26 - 2026-08-22 08:19 - Deploy
