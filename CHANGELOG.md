@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.30 - 2026-08-22 09:02 - Redesign jump-to-date calendar with circular cells and workout indicators
+
 ## v1.0.29 - 2026-08-22 08:44 - Show race pace plan: half-split summary elapsed time effort zones per split
 
 ## v1.0.28 - 2026-08-22 08:38 - Custom-themed calendar for jump-to-date instead of native picker
