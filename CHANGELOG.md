@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.32 - 2026-08-22 09:15 - fix date-jump sheet spacing and duplicate add-race label
+
 ## v1.0.31 - 2026-08-22 09:04 - Add month/year picker to date-jump calendar for faster distant-date navigation
 
 ## v1.0.30 - 2026-08-22 09:02 - Redesign jump-to-date calendar with circular cells and workout indicators
