@@ -665,7 +665,7 @@ function daysUntil(dateStr){
 }
 function fmtRaceDate(dateStr){
   const d=new Date(dateStr+'T00:00:00');
-  return d.getDate()+' '+MONTHS_I18N[S.lang][d.getMonth()]+' '+d.getFullYear();
+  return pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear();
 }
 
 /* rest-day flavor: a different fun emoji+caption per day, picked deterministically
