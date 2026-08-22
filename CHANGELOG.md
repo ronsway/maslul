@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.47 - 2026-08-22 12:00 - Today link on date-jump calendar
+
 ## v1.0.46 - 2026-08-22 11:56 - date range tap opens calendar
 
 ## v1.0.45 - 2026-08-22 11:54 - race split table columns, send-day button
