@@ -267,6 +267,9 @@
     border-radius:12px; padding:12px; font-family:'Assistant'; font-size:15px;}
   .field input.mono{font-family:'JetBrains Mono';}
   .field input:focus{outline:none; border-color:var(--work);}
+  .field input[type=date]{color-scheme:dark;}
+  .field input[type=date]::-webkit-calendar-picker-indicator{cursor:pointer; opacity:.75;}
+  :root[data-theme="light"] .field input[type=date]{color-scheme:light;}
 
   .stepper{display:flex; align-items:center; gap:10px;}
   .stepper button{width:40px; height:40px; border-radius:11px; background:var(--panel);
@@ -588,6 +591,7 @@ const T={
   raceNeedsFields:{he:'הזן תאריך ושם תחרות', en:'Enter a date and race name'},
   searchRaceInfo:{he:'חפש מידע', en:'Search info'},
   raceDistanceLabel:{he:'מרחק המרוץ', en:'Race distance'},
+  raceDistExactHint:{he:'לדוגמה: 21.1', en:'e.g. 21.1'},
   raceIncludeWarmup:{he:'כלול חימום כאימון נפרד', en:'Include a separate warmup'},
   raceIncludeCooldown:{he:'כלול קירור כאימון נפרד', en:'Include a separate cooldown'},
   raceTargetLabel:{he:'זמן יעד (דק׳)', en:'Target time (min)'},
@@ -1808,6 +1812,8 @@ function zonesSheet(){
 /* upcoming-races sub-sheet, same reasoning as zonesSheet() */
 function racesSheet(){
   const p=S.profile; const rd=S.sheet.raceDraft;
+  const rdKm=parseFloat(rd.km)||0;
+  const dispKm=Math.round(rdKm*10)/10;
   const races=(p.races||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
   const side=S.lang==='he'?'side-right':'side-left';
   const closing=S.sheet.closing?' closing':'';
@@ -1843,11 +1849,19 @@ function racesSheet(){
       : `<div class="note" style="margin-bottom:10px">${t('noRaces')}</div>`}
     <div class="minilbl" style="margin-bottom:8px">${S.sheet.editingRaceId? t('raceFormEdit') : t('raceFormNew')}</div>
     <div class="field"><label>${t('raceName')}</label><input value="${rd.name}" oninput="raceDraftField('name',this.value)"></div>
-    <div class="row2">
-      <div class="field"><label>${t('raceDate')}</label><input class="mono" dir="ltr" type="date" value="${rd.date}" oninput="raceDraftField('date',this.value)"></div>
-      <div class="field"><label>${t('raceDist')}</label><input class="mono" inputmode="decimal" value="${rd.km}" oninput="raceDraftField('km',this.value)"></div>
+    <div class="field"><label>${t('raceDate')}</label><input class="mono" dir="ltr" type="date" value="${rd.date}" oninput="raceDraftField('date',this.value)"></div>
+    <div class="minilbl" style="margin:4px 0 8px">${t('raceDistanceLabel')}</div>
+    <div class="distchips">
+      ${RACE_DIST_CHIPS_KM.map(km=>`<button class="${Math.abs(rdKm-km)<0.05?'on':''}" onclick="raceDraftDistPick(${km})">${raceChipLabel(km)}</button>`).join('')}
     </div>
-    <div class="field"><label>${t('raceTargetLabel')}</label>
+    <div class="stepper">
+      <button onclick="raceDraftDistStep(-1)">−</button>
+      <div class="v mono">${dispKm} ${t('kmShort')}</div>
+      <button onclick="raceDraftDistStep(1)">+</button>
+    </div>
+    <div class="exactinput"><input class="mono" dir="ltr" inputmode="decimal" value="${rd.km}" placeholder="${t('raceDistExactHint')}"
+      oninput="raceDraftDistInput(this.value)"></div>
+    <div class="field" style="margin-top:15px"><label>${t('raceTargetLabel')}</label>
       <input class="mono" dir="ltr" value="${rd.target||''}" placeholder="50:00" oninput="raceDraftField('target',this.value)"></div>
     <div class="minilbl" style="margin-bottom:8px">${t('splitStrategyLabel')}</div>
     <div class="toggle" style="margin-bottom:${rd.target?'15px':'6px'}">
@@ -2039,6 +2053,14 @@ function openPhotoCropper(img){
 
 function raceDraftField(k,v){ S.sheet.raceDraft[k]=v; }
 function raceDraftSplit(k){ S.sheet.raceDraft.split=k; render(); }
+function raceDraftDistPick(km){ S.sheet.raceDraft.km=String(km); render(); }
+function raceDraftDistStep(dir){
+  const rd=S.sheet.raceDraft; let km=parseFloat(rd.km)||0;
+  const step=km>=1? 0.5 : 0.05;
+  km=Math.max(0.05, Math.round((km+dir*step)*1000)/1000);
+  rd.km=String(Math.round(km*1000)/1000); render();
+}
+function raceDraftDistInput(v){ S.sheet.raceDraft.km=v; render(); }
 function syncRaceWorkout(race){
   if(!S.plan[race.date]) S.plan[race.date]=[];
   S.plan[race.date]=S.plan[race.date].filter(w=>w.raceId!==race.id);
