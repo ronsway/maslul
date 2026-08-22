@@ -220,6 +220,11 @@
   @supports (height: 100dvh){
     .sheet.compact{min-height:0;}
   }
+  .scrim.center{align-items:center;}
+  .sheet.dialog{width:calc(100% - 32px); max-width:380px; border-radius:22px;
+    border:1px solid var(--line); border-top:1px solid var(--line);
+    animation:dialogIn .18s ease;}
+  @keyframes dialogIn{from{transform:scale(.96); opacity:0;} to{transform:scale(1); opacity:1;}}
   @keyframes up{from{transform:translateY(30px); opacity:.4;} to{transform:none; opacity:1;}}
   .grab{width:40px; height:4px; background:var(--line); border-radius:3px; margin:8px auto 12px;}
   .sheet h2{font-family:'Rubik'; font-weight:800; font-size:20px; margin:2px 0 16px;}
@@ -1335,8 +1340,7 @@ function monthPickSheet(){
   const todayY=new Date().getFullYear(), todayM=new Date().getMonth();
   const selDate=weekDates(S.offset)[S.sel];
   const prevArrow=S.lang==='he'?'›':'‹', nextArrow=S.lang==='he'?'‹':'›';
-  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet compact">
-    <div class="grab"></div>
+  return `<div class="scrim on center" onclick="if(event.target===this)closeSheet()"><div class="sheet compact dialog">
     <h2 class="disp">${t('jumpToDate')}</h2>
     <div class="calnav">
       <button class="navbtn" onclick="dateJumpYearNav(-1)">${prevArrow}</button>
@@ -1379,8 +1383,7 @@ function dayPickSheet(){
     cells.push({d:nextDay++, y, m, muted:true});
   }
 
-  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet compact">
-    <div class="grab"></div>
+  return `<div class="scrim on center" onclick="if(event.target===this)closeSheet()"><div class="sheet compact dialog">
     <h2 class="disp">${t('jumpToDate')}</h2>
     <div class="calnav">
       <button class="navbtn" onclick="dateJumpNav(-1)">${prevArrow}</button>
