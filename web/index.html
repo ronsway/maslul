@@ -161,6 +161,24 @@
   .calcell.day.sel{border-color:var(--work); background:var(--type-on-bg); color:var(--work); font-weight:800;}
   .calcell.empty{background:none;}
 
+  /* ---- race split plan: half-split summary + per-km elapsed/zone rows ---- */
+  .racesummary{background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:11px;}
+  .racesumrow{display:flex; justify-content:space-around; text-align:center;}
+  .racesumval{font-family:'JetBrains Mono'; font-weight:700; font-size:15px;}
+  .racesumval.faster{color:var(--rec);}
+  .racesumval.slower{color:var(--work);}
+  .racesumlbl{font-size:10px; color:var(--muted); margin-top:3px; text-transform:uppercase; letter-spacing:.03em;}
+  .racesplits{display:flex; flex-direction:column;}
+  .racesplitrow{display:grid; grid-template-columns:20px 1fr 1fr 1fr auto; gap:6px; align-items:center;
+    font-size:12.5px; padding:6px 2px; border-bottom:1px solid var(--line);}
+  .racesplitrow:last-child{border-bottom:none;}
+  .racesplitrow .i{color:var(--muted); font-size:11px;}
+  .racesplitrow .v{font-family:'JetBrains Mono'; font-weight:600; color:var(--txt);}
+  .zonepill{font-size:9px; font-weight:800; padding:3px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:.03em; flex:none;}
+  .zonepill.easy{background:rgba(95,176,255,.15); color:var(--easy);}
+  .zonepill.target{background:rgba(245,184,69,.15); color:var(--warm);}
+  .zonepill.push{background:rgba(53,198,180,.15); color:var(--rec);}
+
   .addbtn{width:100%; padding:14px; border-radius:15px; background:var(--panel);
     border:1px solid var(--line); font-family:'Rubik'; font-weight:700; font-size:15px;
     color:var(--txt); display:flex; align-items:center; justify-content:center; gap:8px;}
@@ -552,6 +570,15 @@ const T={
   raceTargetLabel:{he:'זמן יעד (דק׳)', en:'Target time (min)'},
   splitStrategyLabel:{he:'אסטרטגיית פיצול', en:'Split strategy'},
   splitNeedsTargetHint:{he:'ייכנס לתוקף לאחר הזנת זמן יעד', en:'Takes effect once you set a target time'},
+  firstHalfWord:{he:'מחצית ראשונה', en:'First half'},
+  secondHalfWord:{he:'מחצית שנייה', en:'Second half'},
+  splitDeltaWord:{he:'הפרש', en:'Split delta'},
+  fasterWord:{he:'מהיר יותר', en:'faster'},
+  slowerWord:{he:'איטי יותר', en:'slower'},
+  zoneEasy:{he:'קל', en:'Easy'},
+  zoneTarget:{he:'יעד', en:'Target'},
+  zonePush:{he:'דחיפה', en:'Push'},
+  avgPaceWord:{he:'קצב ממוצע', en:'Avg pace'},
   jumpToDate:{he:'קפוץ לתאריך', en:'Jump to date'},
   negativeSplit:{he:'שלילי', en:'Negative'},
   evenSplit:{he:'אחיד', en:'Even'},
@@ -812,6 +839,56 @@ function buildTargetSplits(km, targetSec, strategy){
     const pace=Math.round(avgPaceSecPerKm*(1+splitFactor(strategy,t)));
     return {kind:'steady', mode:'dist', value:meters, pace};
   });
+}
+/* first/middle/last third of the race gets an easy/target/push effort tag,
+   matching how a negative-split plan is usually talked about; an even split
+   just calls the whole thing "target" pace throughout */
+function raceSplitZone(idx, n, strategy){
+  if(strategy==='even') return 'target';
+  const pos=idx/Math.max(1,n-1);
+  if(pos<1/3) return 'easy';
+  if(pos<2/3) return 'target';
+  return 'push';
+}
+function raceSplitSecs(b){ return b.pace? Math.round(b.value/1000*b.pace) : Math.round(b.value*PACE.easy); }
+/* first-half vs second-half time comparison, the "will this plan actually get
+   me a negative split" sanity check */
+function raceSplitSummary(w){
+  if(!w.raceTargetSec || w.blocks.length<2) return '';
+  const halfDist=w.raceDistM/2;
+  let cum=0, cumDist=0, firstHalfSec=null;
+  w.blocks.forEach(b=>{
+    cumDist+=b.value; cum+=raceSplitSecs(b);
+    if(firstHalfSec==null && cumDist>=halfDist) firstHalfSec=cum;
+  });
+  const secondHalfSec=cum-(firstHalfSec||0);
+  const diff=(firstHalfSec||0)-secondHalfSec; // positive = negative split (2nd half faster)
+  return `<div class="racesummary">
+    <div class="racesumrow">
+      <div><div class="racesumval">${mmss(firstHalfSec||0)}</div><div class="racesumlbl">${t('firstHalfWord')}</div></div>
+      <div><div class="racesumval">${mmss(secondHalfSec)}</div><div class="racesumlbl">${t('secondHalfWord')}</div></div>
+      <div><div class="racesumval ${diff>0?'faster':diff<0?'slower':''}">${mmss(Math.abs(diff))}${diff!==0?' '+(diff>0?t('fasterWord'):t('slowerWord')):''}</div><div class="racesumlbl">${t('splitDeltaWord')}</div></div>
+    </div>
+  </div>`;
+}
+/* per-km split rows for a race with a target time: pace, cumulative elapsed
+   time, and an effort zone tag - this is the plan the runner actually follows */
+function renderRaceSplits(w){
+  let elapsed=0;
+  const n=w.blocks.length;
+  const rows=w.blocks.map((b,i)=>{
+    elapsed+=raceSplitSecs(b);
+    const zone=raceSplitZone(i,n,w.raceSplit||'negative');
+    const zoneKey='zone'+zone.charAt(0).toUpperCase()+zone.slice(1);
+    return `<div class="racesplitrow">
+      <span class="i mono">${i+1}</span>
+      <span class="v">${fmtKm(b.value)}</span>
+      <span class="v mono">${b.pace? mmss(b.pace)+'/'+t('kmShort') : '—'}</span>
+      <span class="v mono">${mmss(elapsed)}</span>
+      <span class="zonepill ${zone}">${t(zoneKey)}</span>
+    </div>`;
+  }).join('');
+  return `<div class="racesplits">${rows}</div>`;
 }
 
 /* ============ state ============ */
@@ -1118,14 +1195,16 @@ function renderCard(w,idx){
       <span>${w.actual.matchedByDate?'~ ':''}${t('actualLabel')}: ${w.actual.distanceKm} ${t('kmShort')} · ${mmss(w.actual.paceSecPerKm||0)}/${t('kmShort')}${w.actual.avgHR?' · '+Math.round(w.actual.avgHR)+' HR':''}${scoreWorkout(w)!=null?' · '+t('scoreLabel')+' '+scoreWorkout(w)+'%':''}</span>
       <span class="nrarrow">${drillArrow()}</span>
     </button>` : ''}
+    ${w.type==='race' && w.raceTargetSec && w.blocks.length>1? raceSplitSummary(w) : ''}
     <div class="steps">
       ${w.raceAux? `<div class="step"><span class="pip" style="background:var(--warm)"></span>
         <span class="lbl">${w.raceAux==='warm'?t('warmup'):t('cooldown')}</span><span class="val">${mmss(w.blocks[0].value)}</span></div>`
-      : `${w.warmupSec>0? `<div class="step"><span class="pip" style="background:var(--warm)"></span>
+      : (w.type==='race' && w.blocks.length>1 && w.blocks[0].pace? renderRaceSplits(w) : `
+      ${w.warmupSec>0? `<div class="step"><span class="pip" style="background:var(--warm)"></span>
         <span class="lbl">${t('warmup')}</span><span class="val">${mmss(w.warmupSec)}</span></div>` : ''}
       ${w.blocks.map((b,i)=>renderBlockView(b,i,w.blocks.length)).join('')}
       ${w.cooldownSec>0? `<div class="step"><span class="pip" style="background:var(--warm)"></span>
-        <span class="lbl">${t('cooldown')}</span><span class="val">${mmss(w.cooldownSec)}</span></div>` : ''}`}
+        <span class="lbl">${t('cooldown')}</span><span class="val">${mmss(w.cooldownSec)}</span></div>` : ''}`)}
     </div>
     <div class="cardacts">
       <button class="donebtn ${w.done?'on':''}" onclick="toggleDone(${idx})">${w.done?'✓ '+t('doneWord'):t('markDone')}</button>
