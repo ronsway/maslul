@@ -1,0 +1,8 @@
+.gitattributes text eol=lf
+
+# scripts/bump_version.js writes these with plain LF; keep them LF in the repo
+# and on checkout so Git stops warning about converting them to CRLF locally.
+VERSION text eol=lf
+CHANGELOG.md text eol=lf
+web/version.js text eol=lf
+web/sw.js text eol=lf
