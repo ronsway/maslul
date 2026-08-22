@@ -149,17 +149,22 @@
   .statsbars .wk{font-size:8px; color:var(--muted2); margin-top:5px; writing-mode:horizontal-tb;}
 
   /* ---- jump-to-date calendar ---- */
-  .calnav{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
-  .caltitle{font-weight:700; font-size:17px;}
-  .calgrid{display:grid; grid-template-columns:repeat(7,1fr); gap:5px;}
-  .calcell{aspect-ratio:1; display:flex; align-items:center; justify-content:center; border-radius:10px;
-    font-family:'JetBrains Mono'; font-weight:600; font-size:13px; color:var(--txt);}
-  .calcell.dow{font-family:'Assistant'; font-weight:700; font-size:11px; color:var(--muted); aspect-ratio:auto; padding-bottom:6px;}
-  .calcell.day{background:var(--panel2); border:1px solid var(--line);}
-  .calcell.day:active{background:var(--panel);}
-  .calcell.day.today{color:var(--warm); border-color:var(--warm);}
-  .calcell.day.sel{border-color:var(--work); background:var(--type-on-bg); color:var(--work); font-weight:800;}
-  .calcell.empty{background:none;}
+  .calnav{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;}
+  .caltitle{font-weight:700; font-size:16px;}
+  .calgrid{display:grid; grid-template-columns:repeat(7,1fr); row-gap:2px;}
+  .calcell{aspect-ratio:1; display:flex; align-items:center; justify-content:center; position:relative;}
+  .calcell.dow{font-family:'Assistant'; font-weight:700; font-size:10.5px; letter-spacing:.03em; text-transform:uppercase;
+    color:var(--muted); aspect-ratio:auto; padding-bottom:10px;}
+  .calcell.day{background:none; border:none; padding:0; margin:0;}
+  .calcell.day .num{width:36px; height:36px; max-width:82%; max-height:82%; display:flex; align-items:center; justify-content:center;
+    border-radius:50%; font-family:'JetBrains Mono'; font-weight:600; font-size:13.5px; color:var(--txt); transition:background .1s;}
+  .calcell.day:active .num{background:var(--panel2);}
+  .calcell.day.muted .num{color:var(--muted2);}
+  .calcell.day.today .num{border:1.5px solid var(--warm); color:var(--warm); font-weight:800;}
+  .calcell.day.sel .num{background:var(--work); color:#1a0d09; font-weight:800;}
+  .calcell.day.today.sel .num{box-shadow:0 0 0 2px var(--warm);}
+  .calcell.day .dot{position:absolute; bottom:2px; width:4px; height:4px; border-radius:50%; background:var(--easy);}
+  .calcell.day.sel .dot{background:#1a0d09;}
 
   /* ---- race split plan: half-split summary + per-km elapsed/zone rows ---- */
   .racesummary{background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:11px;}
@@ -1307,15 +1312,29 @@ function statsSheet(){
    be restyled to match the app's theme, so this is a small in-app month grid instead */
 function dateJumpSheet(){
   const {viewYear, viewMonth}=S.sheet;
-  const first=new Date(viewYear, viewMonth, 1);
-  const startDow=first.getDay();
+  const startDow=new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth=new Date(viewYear, viewMonth+1, 0).getDate();
+  const prevMonthDays=new Date(viewYear, viewMonth, 0).getDate();
   const todayStr=ymd(new Date());
   const selDateStr=ymd(weekDates(S.offset)[S.sel]);
   const M=MONTHS_I18N[S.lang];
   const prevArrow=S.lang==='he'?'›':'‹', nextArrow=S.lang==='he'?'‹':'›';
-  const cells=[]; for(let i=0;i<startDow;i++) cells.push(null);
-  for(let d=1; d<=daysInMonth; d++) cells.push(d);
+
+  // build a full 7-wide grid including muted lead-in/trail-off days from the
+  // adjacent months, so the grid always looks balanced instead of leaving
+  // blank gaps before the 1st or a ragged last row
+  const cells=[];
+  for(let i=startDow-1;i>=0;i--){
+    let y=viewYear, m=viewMonth-1; if(m<0){ m=11; y--; }
+    cells.push({d:prevMonthDays-i, y, m, muted:true});
+  }
+  for(let d=1; d<=daysInMonth; d++) cells.push({d, y:viewYear, m:viewMonth, muted:false});
+  let nextDay=1;
+  while(cells.length%7!==0){
+    let y=viewYear, m=viewMonth+1; if(m>11){ m=0; y++; }
+    cells.push({d:nextDay++, y, m, muted:true});
+  }
+
   return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet">
     <div class="grab"></div>
     <h2 class="disp">${t('jumpToDate')}</h2>
@@ -1326,10 +1345,16 @@ function dateJumpSheet(){
     </div>
     <div class="calgrid">
       ${DAYS[S.lang].map(dn=>`<div class="calcell dow">${dn}</div>`).join('')}
-      ${cells.map(d=>{
-        if(d==null) return `<div class="calcell empty"></div>`;
-        const dateStr=viewYear+'-'+pad(viewMonth+1)+'-'+pad(d);
-        return `<button class="calcell day${dateStr===todayStr?' today':''}${dateStr===selDateStr?' sel':''}" onclick="dateJumpPick('${dateStr}')">${d}</button>`;
+      ${cells.map(c=>{
+        const dateStr=c.y+'-'+pad(c.m+1)+'-'+pad(c.d);
+        const hasWorkout=(S.plan[dateStr]||[]).length>0;
+        const cls=['calcell','day'];
+        if(c.muted) cls.push('muted');
+        if(dateStr===todayStr) cls.push('today');
+        if(dateStr===selDateStr) cls.push('sel');
+        return `<button class="${cls.join(' ')}" onclick="dateJumpPick('${dateStr}')">
+          <span class="num">${c.d}</span>${hasWorkout?'<span class="dot"></span>':''}
+        </button>`;
       }).join('')}
     </div>
     <button class="ghost" onclick="closeSheet()" style="margin-top:16px">${t('close')}</button>
