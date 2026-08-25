@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.50 - 2026-08-25 16:52 - add strength, rowing, elliptical workout types
+
 ## v1.0.49 - 2026-08-25 15:16 - fix stats sheet dead space
 
 ## v1.0.48 - 2026-08-22 12:03 - numeric race date format
