@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.49 - 2026-08-25 15:16 - fix stats sheet dead space
+
 ## v1.0.48 - 2026-08-22 12:03 - numeric race date format
 
 ## v1.0.47 - 2026-08-22 12:00 - Today link on date-jump calendar
