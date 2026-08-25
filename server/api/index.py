@@ -25,10 +25,12 @@ from pydantic import BaseModel
 
 from garminconnect import Garmin
 from garminconnect.workout import (
-    RunningWorkout, WorkoutSegment, ExecutableStep,
+    RunningWorkout, FitnessEquipmentWorkout, StrengthWorkout,
+    WorkoutSegment, ExecutableStep,
     ConditionType, StepType, TargetType,
     create_warmup_step, create_cooldown_step,
     create_interval_step, create_recovery_step, create_repeat_group,
+    create_strength_set,
 )
 
 app = FastAPI(title="Maslul Garmin Backend")
@@ -52,6 +54,13 @@ class Block(BaseModel):
     value: Optional[int] = None
     pace: Optional[float] = None     # seconds per km target, steady+dist blocks only (e.g. race splits)
 
+class StrengthExercise(BaseModel):
+    category: str                    # Garmin exercise category, e.g. "SQUAT" - see garminconnect.exercises
+    sets: int
+    reps: int
+    weightKg: Optional[float] = None
+    restSec: float
+
 class Workout(BaseModel):
     date: str                        # "YYYY-MM-DD"
     name: str
@@ -60,6 +69,7 @@ class Workout(BaseModel):
     warmupSec: int = 0
     cooldownSec: int = 0
     blocks: List[Block] = []
+    exercises: List[StrengthExercise] = []   # sport=="strength" only
     garminWorkoutId: Optional[int] = None   # id from a previous send, so it can be replaced instead of duplicated
 
 class WeekPayload(BaseModel):
@@ -172,13 +182,33 @@ def build_steps(w: Workout):
         steps.append(create_cooldown_step(float(w.cooldownSec), order))
     return steps
 
-# rough seconds-per-meter used only for the required duration estimate
+def build_strength_steps(w: Workout):
+    steps = []
+    order = 1
+    if w.warmupSec:
+        steps.append(create_warmup_step(float(w.warmupSec), order)); order += 1
+    for ex in w.exercises:
+        steps.append(create_strength_set(
+            ex.category, order, ex.sets, ex.reps, ex.restSec,
+            weight_kg=ex.weightKg,
+        ))
+        order += 3  # create_strength_set uses order, order+1, order+2 internally
+    return steps
+
+# rough seconds-per-meter / seconds-per-rep used only for the required
+# duration estimate - mirrored in web/index.html (PACE / ASSUMED_SEC_PER_REP)
 _SEC_PER_METER = 0.36
+_SEC_PER_REP = 3.5
 
 def _seg_secs(seg: Seg) -> float:
     return seg.value if seg.mode == "time" else seg.value * _SEC_PER_METER
 
 def estimate_secs(w: Workout) -> int:
+    if w.sport == "strength":
+        total = float(w.warmupSec)
+        for ex in w.exercises:
+            total += ex.sets * (ex.reps * _SEC_PER_REP + ex.restSec)
+        return int(total)
     total = float(w.warmupSec + w.cooldownSec)
     for b in w.blocks:
         if b.kind == "steady" and b.value:
@@ -187,14 +217,25 @@ def estimate_secs(w: Workout) -> int:
             total += b.reps * (_seg_secs(b.work) + _seg_secs(b.recovery))
     return int(total)
 
-def build_workout(w: Workout) -> RunningWorkout:
-    return RunningWorkout(
+# sport -> (workout class, sportType dict, step-builder). Rowing/elliptical
+# reuse build_steps as-is - FitnessEquipmentWorkout only differs from
+# RunningWorkout in this top-level sportType tag, not in step shape.
+_SPORT_CONFIG = {
+    "running": (RunningWorkout, {"sportTypeId": 1, "sportTypeKey": "running"}, build_steps),
+    "rowing": (FitnessEquipmentWorkout, {"sportTypeId": 6, "sportTypeKey": "cardio_training"}, build_steps),
+    "elliptical": (FitnessEquipmentWorkout, {"sportTypeId": 6, "sportTypeKey": "cardio_training"}, build_steps),
+    "strength": (StrengthWorkout, {"sportTypeId": 5, "sportTypeKey": "strength_training"}, build_strength_steps),
+}
+
+def build_workout(w: Workout):
+    workout_cls, sport_type, step_builder = _SPORT_CONFIG.get(w.sport, _SPORT_CONFIG["running"])
+    return workout_cls(
         workoutName=w.name,
         estimatedDurationInSecs=estimate_secs(w),
         workoutSegments=[WorkoutSegment(
             segmentOrder=1,
-            sportType={"sportTypeId": 1, "sportTypeKey": "running"},
-            workoutSteps=build_steps(w),
+            sportType=sport_type,
+            workoutSteps=step_builder(w),
         )],
     )
 
