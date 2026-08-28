@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.59 - 2026-08-28 15:22 - enter to format compact time distance row
+
 ## v1.0.58 - 2026-08-28 13:42 - distinct sport colors fix duplicate number fields
 
 ## v1.0.57 - 2026-08-28 13:20 - use exact reference icons for sports
