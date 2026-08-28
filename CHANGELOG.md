@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.55 - 2026-08-28 13:07 - workout hierarchy yoga crossfit icons
+
 ## v1.0.54 - 2026-08-28 12:57 - Deploy
 
 ## v1.0.53 - 2026-08-28 12:35 - Deploy
