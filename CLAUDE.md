@@ -29,6 +29,10 @@ Frontend and backend can be deployed separately. Frontend can go to GitHub Pages
 2. Auth is TOKEN based, not password per request. A long-lived Garth token
    (~1 year, auto-refresh) lives in the `GARTH_TOKEN` env var. Password is never
    sent from the app or stored. Token generated once via `scripts/generate_token.py`.
+   To refresh it (e.g. after a Garmin-side 401/"Failed to retrieve social
+   profile" error), run `scripts/refresh_token.bat` - prompts for Garmin
+   credentials once, writes the token, then pushes it to Vercel and redeploys
+   the backend in one go (chains `generate_token.py` + `set_garth_token.bat`).
 3. As of 2026-08, `scripts/generate_token.py` has hit a Garmin login page titled
    "GARMIN Authentication Application" (the real title Garmin's authenticator-app
    MFA challenge uses) even though the owner reports not using MFA — cause

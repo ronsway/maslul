@@ -25,7 +25,7 @@ from pydantic import BaseModel
 
 from garminconnect import Garmin
 from garminconnect.workout import (
-    RunningWorkout, FitnessEquipmentWorkout, StrengthWorkout,
+    RunningWorkout, FitnessEquipmentWorkout, StrengthWorkout, BaseWorkout,
     WorkoutSegment, ExecutableStep,
     ConditionType, StepType, TargetType,
     create_warmup_step, create_cooldown_step,
@@ -193,6 +193,8 @@ def build_strength_steps(w: Workout):
             weight_kg=ex.weightKg,
         ))
         order += 3  # create_strength_set uses order, order+1, order+2 internally
+    if w.cooldownSec:  # strength never sets this (no cooldown in that UI); crossfit always does
+        steps.append(create_cooldown_step(float(w.cooldownSec), order))
     return steps
 
 # rough seconds-per-meter / seconds-per-rep used only for the required
@@ -204,8 +206,8 @@ def _seg_secs(seg: Seg) -> float:
     return seg.value if seg.mode == "time" else seg.value * _SEC_PER_METER
 
 def estimate_secs(w: Workout) -> int:
-    if w.sport == "strength":
-        total = float(w.warmupSec)
+    if w.sport in ("strength", "crossfit"):
+        total = float(w.warmupSec + w.cooldownSec)
         for ex in w.exercises:
             total += ex.sets * (ex.reps * _SEC_PER_REP + ex.restSec)
         return int(total)
@@ -219,18 +221,26 @@ def estimate_secs(w: Workout) -> int:
 
 # sport -> (workout class, sportType dict, step-builder). Rowing/elliptical
 # reuse build_steps as-is - FitnessEquipmentWorkout only differs from
-# RunningWorkout in this top-level sportType tag, not in step shape.
+# RunningWorkout in this top-level sportType tag, not in step shape. Yoga and
+# crossfit have no dedicated model in garminconnect.workout (only a SportType
+# id each), so they use BaseWorkout directly with an explicit sportType -
+# crossfit reuses build_strength_steps (same sets/reps/weight/rest shape as
+# strength) tagged as HIIT rather than STRENGTH_TRAINING, since it's circuit/
+# conditioning work, not a plain lifting session.
 _SPORT_CONFIG = {
     "running": (RunningWorkout, {"sportTypeId": 1, "sportTypeKey": "running"}, build_steps),
     "rowing": (FitnessEquipmentWorkout, {"sportTypeId": 6, "sportTypeKey": "cardio_training"}, build_steps),
     "elliptical": (FitnessEquipmentWorkout, {"sportTypeId": 6, "sportTypeKey": "cardio_training"}, build_steps),
     "strength": (StrengthWorkout, {"sportTypeId": 5, "sportTypeKey": "strength_training"}, build_strength_steps),
+    "crossfit": (BaseWorkout, {"sportTypeId": 9, "sportTypeKey": "hiit"}, build_strength_steps),
+    "yoga": (BaseWorkout, {"sportTypeId": 7, "sportTypeKey": "yoga"}, build_steps),
 }
 
 def build_workout(w: Workout):
     workout_cls, sport_type, step_builder = _SPORT_CONFIG.get(w.sport, _SPORT_CONFIG["running"])
     return workout_cls(
         workoutName=w.name,
+        sportType=sport_type,
         estimatedDurationInSecs=estimate_secs(w),
         workoutSegments=[WorkoutSegment(
             segmentOrder=1,
