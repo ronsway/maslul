@@ -733,23 +733,22 @@ const SPORTS={
   yoga:{name:'יוגה', en:'Yoga', color:'--yoga'},
 };
 const SPORTS_LIST=['running','rowing','elliptical','strength','crossfit','yoga'];
-/* line-icon paths (24x24, stroke-based) matching the app's existing icon style
-   (see the stats/sync icons elsewhere) - emoji looked out of place against
-   those, so each sport gets a small hand-drawn glyph instead. Each is one (or
-   a couple of) closed/continuous shape rather than scattered line fragments,
-   so it reads as a complete pictogram at ~19px instead of loose marks.
-   Crossfit is a kettlebell (arc handle + circle) - distinct from strength's
-   dumbbell and a strong, non-trademarked visual shorthand for the sport. */
+/* line-icon paths (24x24, stroke-based) - a small figure doing/using each
+   sport (person+equipment), not just an abstract symbol, per reference photo.
+   Each figure is a head dot + connected limb segments sharing exact vertices
+   (no floating disconnected strokes) so it reads as one complete pictogram at
+   ~19px. Crossfit is a squat + kettlebell rather than reusing the strength
+   barbell pose, since the two are conceptually different workout types here. */
 const SPORT_ICON_PATHS={
-  running:'<circle cx="14.5" cy="4.6" r="1.5"/><path d="M19 5.7L17 7 14.5 6.3 11.5 8.3 9.3 10.3"/><path d="M14.5 6.3L12.3 10.8M12.3 10.8L9.3 12.3 10.3 17M12.3 10.8L15.5 12.8 18.3 15.3"/>',
-  rowing:'<path d="M17 3c1.8.4 2.7 1.8 2.3 3.3-.4 1.3-1.6 1.9-2.8 1.5L6.2 18.1c.5.9.2 2-.7 2.5-1 .5-2.1.1-2.6-.9-.5-1-.1-2.1.9-2.6-.4-.9-.1-2 .8-2.5L14.8 5.3c-.5-1-.1-2 .8-2.5.5-.2.9-.2 1.4 0z"/>',
-  elliptical:'<path d="M6.5 12c0-2.2 1.6-4 3.7-4s3.8 1.8 3.8 4-1.7 4-3.8 4-3.7-1.8-3.7-4z"/><path d="M10.2 12c0-2.2 1.7-4 3.8-4s3.8 1.8 3.8 4-1.7 4-3.8 4-3.8-1.8-3.8-4z"/>',
-  strength:'<rect x="2" y="9.5" width="3" height="5" rx="1"/><rect x="19" y="9.5" width="3" height="5" rx="1"/><rect x="5.2" y="7.5" width="2.3" height="9" rx="1"/><rect x="16.5" y="7.5" width="2.3" height="9" rx="1"/><line x1="7.5" y1="12" x2="16.5" y2="12"/>',
-  crossfit:'<path d="M9 6a3 3 0 0 1 6 0v1.3"/><circle cx="12" cy="14.5" r="6.5"/>',
-  yoga:'<path d="M12 17c-1.6-2.2-1.6-5.4 0-8.6 1.6 3.2 1.6 6.4 0 8.6z" transform="rotate(0 12 17)"/><path d="M12 17c-1.6-2.2-1.6-5.4 0-8.6 1.6 3.2 1.6 6.4 0 8.6z" transform="rotate(72 12 17)"/><path d="M12 17c-1.6-2.2-1.6-5.4 0-8.6 1.6 3.2 1.6 6.4 0 8.6z" transform="rotate(144 12 17)"/><path d="M12 17c-1.6-2.2-1.6-5.4 0-8.6 1.6 3.2 1.6 6.4 0 8.6z" transform="rotate(216 12 17)"/><path d="M12 17c-1.6-2.2-1.6-5.4 0-8.6 1.6 3.2 1.6 6.4 0 8.6z" transform="rotate(288 12 17)"/>',
+  running:'<circle cx="14.5" cy="4.6" r="1.6" fill="currentColor" stroke="none"/><path d="M19 5.9L17 7.3 14.5 6.5 11.3 8.7 9 10.9"/><path d="M14.5 6.5L12.1 11M12.1 11L8.8 12.7 9.8 17.5M12.1 11L15.8 13 18.8 15.7"/>',
+  rowing:'<circle cx="8" cy="6" r="1.6" fill="currentColor" stroke="none"/><path d="M8 7.6L11 12.5"/><path d="M8 7.6L13 8.3 17.5 7.5"/><path d="M11 12.5L8.5 15 6.5 18"/><path d="M3.5 18.5L21 18.5"/><circle cx="19" cy="12.5" r="2.6"/>',
+  elliptical:'<circle cx="9" cy="5" r="1.6" fill="currentColor" stroke="none"/><path d="M9 6.6L9.5 12"/><path d="M9 6.6L13 8"/><path d="M13 4L13 9"/><path d="M9.5 12L12 14 15 15"/><path d="M9.5 12L7 15 5 17"/><ellipse cx="11" cy="17" rx="7" ry="2"/>',
+  strength:'<circle cx="12" cy="5" r="1.6" fill="currentColor" stroke="none"/><path d="M12 6.6L12 14"/><path d="M12 14L9 20M12 14L15 20"/><path d="M7.5 8L9.5 4.3M16.5 8L14.5 4.3"/><path d="M6 4.3L18 4.3"/><path d="M5 3L5 5.6M19 3L19 5.6"/>',
+  crossfit:'<circle cx="14" cy="5" r="1.6" fill="currentColor" stroke="none"/><path d="M14 6.6L12 11"/><path d="M12 11L9 13 8 17M12 11L15 13 16 17"/><path d="M14 6.6L17 5"/><circle cx="18.3" cy="3.7" r="1.7"/><path d="M17 2.6a1.4 1.4 0 0 1 2.6 0"/>',
+  yoga:'<circle cx="12" cy="5" r="1.6" fill="currentColor" stroke="none"/><path d="M12 6.6L12 13"/><path d="M12 13L7 16 9 14.3M12 13L17 16 15 14.3"/><path d="M7 16L17 16"/><path d="M12 7.3L7.5 15.5M12 7.3L16.5 15.5"/>',
 };
 function sportIcon(k){
-  return `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(${SPORTS[k].color})" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SPORT_ICON_PATHS[k]}</svg>`;
+  return `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(${SPORTS[k].color})" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${SPORT_ICON_PATHS[k]}</svg>`;
 }
 const CARDIO_SPORTS=['running','rowing','elliptical'];
 const CARDIO_KINDS=['intervals','tempo','hills','fartlek','volume','recovery'];
