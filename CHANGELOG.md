@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.53 - 2026-08-28 12:35 - Deploy
+
 ## v1.0.52 - 2026-08-28 12:28 - Deploy
 
 ## v1.0.51 - 2026-08-28 12:19 - Deploy
