@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.57 - 2026-08-28 13:20 - use exact reference icons for sports
+
 ## v1.0.56 - 2026-08-28 13:13 - redesign sport icons as figure pictograms
 
 ## v1.0.55 - 2026-08-28 13:07 - workout hierarchy yoga crossfit icons
