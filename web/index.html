@@ -309,11 +309,6 @@
   .exchips button{padding:8px 11px; border-radius:9px; background:var(--panel); border:1px solid var(--line);
     font-family:'Assistant'; font-weight:600; font-size:12.5px; color:var(--txt);}
   .exchips button.on{border-color:var(--strength); background:var(--type-on-bg);}
-  .unittoggle{max-width:130px; margin-bottom:8px;}
-  .exactinput{margin-top:6px;}
-  .exactinput input{width:100%; background:none; border:none; color:var(--muted); font-size:12px;
-    text-align:center; padding:2px;}
-  .exactinput input:focus{outline:none; color:var(--txt);}
 
   .blk{background:var(--panel); border:1px solid var(--line); border-radius:15px; padding:13px; margin-bottom:11px;}
   .blk .bh{display:flex; align-items:center; justify-content:space-between; margin-bottom:11px;}
@@ -716,7 +711,9 @@ function restDayFlavor(dateStr){
   let h=0; for(let i=0;i<dateStr.length;i++) h=(h*31+dateStr.charCodeAt(i))>>>0;
   return REST_DAYS[h%REST_DAYS.length];
 }
-function mmss(sec){ const m=Math.floor(sec/60), s=sec%60; return m+':'+pad(s); }
+function mmss(sec){ sec=Math.round(sec);
+  const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;
+  return h>0? h+':'+pad(m)+':'+pad(s) : m+':'+pad(s); }
 function startOfWeek(offset){ // Sunday-start week
   const t=new Date(); t.setHours(0,0,0,0);
   t.setDate(t.getDate()-t.getDay()+offset*7); return t;
@@ -1019,7 +1016,11 @@ function fmtKm(m){ return (m%1000===0?(m/1000):(Math.round(m/10)/100))+' '+t('km
 /* editor input parsing: accepts "3:00" or "180" for time; "400" or "5"/"5km" for distance */
 function parseTimeInput(v){
   v=(v||'').trim();
-  if(v.includes(':')){ const [m,s]=v.split(':'); return Math.max(0,(parseInt(m)||0)*60+(parseInt(s)||0)); }
+  if(v.includes(':')){
+    const parts=v.split(':').map(p=>parseInt(p)||0);
+    if(parts.length>=3) return Math.max(0, parts[0]*3600+parts[1]*60+parts[2]);
+    return Math.max(0, parts[0]*60+parts[1]);
+  }
   return Math.max(0, parseInt(v)||0);
 }
 function fmtTimeInput(sec){ return mmss(sec); }
@@ -1825,7 +1826,7 @@ function editorSheet(){
 function stepperHTML(key,val){
   return `<div class="stepper">
     <button onclick="bump('${key}',-1)">−</button>
-    <input class="v mono" dir="ltr" inputmode="numeric" value="${val}" onclick="this.select()" oninput="setStepperVal('${key}',this.value)">
+    <input class="v mono" dir="ltr" inputmode="numeric" value="${val}" onclick="this.select()" oninput="setStepperVal('${key}',this.value)" onkeydown="commitOnEnter(event)">
     <button onclick="bump('${key}',1)">+</button></div>`;
 }
 function blockEditor(b,i,sport){
@@ -1868,7 +1869,7 @@ function raceDistSection(d){
     <div class="stepper">
       <button onclick="raceDistStep(-1)">−</button>
       <input class="v mono" dir="ltr" value="${fmtDistInput(d.raceDistM)}" placeholder="${t('distHint')}" onclick="this.select()"
-        oninput="raceDistInput(this.value)">
+        oninput="raceDistInput(this.value)" onkeydown="commitOnEnter(event)">
       <button onclick="raceDistStep(1)">+</button>
     </div>
 
@@ -2000,34 +2001,34 @@ function segEditor(seg,i,which,sport){
   // defaulting to time, so there's nothing suggesting otherwise
   const allowDist=sport!=='yoga';
   const isTime=seg.mode==='time' || !allowDist;
-  const modeToggle=allowDist? `<div class="toggle" style="margin-bottom:7px">
-      <button class="${isTime?'on':''}" onclick="segMode(${i},'${which}','time')">${t('timeMode')}</button>
-      <button class="${!isTime?'on':''}" onclick="segMode(${i},'${which}','dist')">${t('distMode')}</button>
+  const unit=seg.unit||(seg.value>=1000?'km':'m');
+  // mode (time/distance) and unit (km/m) used to be two stacked toggle rows;
+  // collapsed into one 3-way row (time / km / m) since picking km or m
+  // already implies distance mode - no reason to spend a second row on it.
+  const modeRow=allowDist? `<div class="toggle" style="margin-bottom:7px">
+      <button class="${isTime?'on':''}" onclick="segModeUnit(${i},'${which}','time')">${t('timeMode')}</button>
+      <button class="${!isTime&&unit==='km'?'on':''}" onclick="segModeUnit(${i},'${which}','km')">${t('kmShort')}</button>
+      <button class="${!isTime&&unit==='m'?'on':''}" onclick="segModeUnit(${i},'${which}','m')">${t('meterShort')}</button>
     </div>` : '';
   if(isTime){
-    return modeToggle+`
+    return modeRow+`
       <div class="stepper">
         <button onclick="segTimeStep(${i},'${which}',-1)">−</button>
         <input class="v mono" dir="ltr" value="${fmtTimeInput(seg.value)}" placeholder="${t('timeHint')}" onclick="this.select()"
-          oninput="segVal(${i},'${which}',this.value)">
+          oninput="segVal(${i},'${which}',this.value)" onkeydown="commitOnEnter(event)">
         <button onclick="segTimeStep(${i},'${which}',1)">+</button>
       </div>`;
   }
-  const unit=seg.unit||(seg.value>=1000?'km':'m');
   const distChipsKm=sport==='running'? RUN_DIST_CHIPS_KM : CARDIO_DIST_CHIPS_KM;
   const chips=which==='steady'? `<div class="distchips">
       ${distChipsKm.map(km=>`<button class="${unit==='km'&&seg.value===Math.round(km*1000)?'on':''}" onclick="segDistPick(${i},'${which}',${km})">${raceChipLabel(km)}</button>`).join('')}
     </div>` : '';
-  return modeToggle+`
-    <div class="toggle unittoggle">
-      <button class="${unit==='km'?'on':''}" onclick="segUnit(${i},'${which}','km')">${t('kmShort')}</button>
-      <button class="${unit==='m'?'on':''}" onclick="segUnit(${i},'${which}','m')">${t('meterShort')}</button>
-    </div>
+  return modeRow+`
     ${chips}
     <div class="stepper">
       <button onclick="segDistStep(${i},'${which}',-1)">−</button>
       <input class="v mono" dir="ltr" value="${fmtDistInput(seg.value)}" placeholder="${t('distHint')}" onclick="this.select()"
-        oninput="segVal(${i},'${which}',this.value)">
+        oninput="segVal(${i},'${which}',this.value)" onkeydown="commitOnEnter(event)">
       <button onclick="segDistStep(${i},'${which}',1)">+</button>
     </div>`;
 }
@@ -2213,7 +2214,7 @@ function racesSheet(){
     <div class="stepper">
       <button onclick="raceDraftDistStep(-1)">−</button>
       <input class="v mono" dir="ltr" inputmode="decimal" value="${rd.km}" placeholder="${t('raceDistExactHint')}" onclick="this.select()"
-        oninput="raceDraftDistInput(this.value)">
+        oninput="raceDraftDistInput(this.value)" onkeydown="commitOnEnter(event)">
       <button onclick="raceDraftDistStep(1)">+</button>
     </div>
     <div class="field" style="margin-top:15px"><label>${t('raceTargetLabel')}</label>
@@ -2547,6 +2548,14 @@ function setStepperVal(key,raw){
   else if(key.startsWith('exReps')){ const i=+key.slice(6); d.exercises[i].reps=Math.max(1,n); }
   else if(key.startsWith('exRest')){ const i=+key.slice(6); d.exercises[i].restSec=Math.max(0,n); }
 }
+/* typing into a stepper's value field doesn't re-render on every keystroke
+   (so the DOM doesn't fight the user for focus/cursor position mid-type -
+   see stepperHTML's comment), so nothing reformats what's typed until
+   something else triggers a render. Enter is that trigger: it blurs (closes
+   the mobile keyboard) and re-renders, which redraws the field from state
+   using the same fmt-style/mmss formatting as everywhere else - so "125" becomes
+   "2:05", "5.5" becomes "5.5km", etc. */
+function commitOnEnter(e){ if(e.key==='Enter'){ e.preventDefault(); e.target.blur(); render(); } }
 function toggleRaceWarmup(){ S.sheet.raceWarmup.on=!S.sheet.raceWarmup.on; render(); }
 function toggleRaceCooldown(){ S.sheet.raceCooldown.on=!S.sheet.raceCooldown.on; render(); }
 function toggleWarmCool(key){
@@ -2558,14 +2567,19 @@ function toggleWarmCool(key){
 function addBlock(){ S.sheet.draft.blocks.push({kind:'repeat', reps:4,
   work:{mode:'time',value:120}, recovery:{mode:'time',value:90}}); render(); }
 function rmBlock(i){ S.sheet.draft.blocks.splice(i,1); render(); }
-function segMode(i,which,mode){ const b=S.sheet.draft.blocks[i];
-  const seg = which==='steady'? b : b[which]; seg.mode=mode;
-  if(mode==='dist' && seg.value<50) seg.value=which==='steady'?5000:400; render(); }
+/* one combined control for mode+unit (see segEditor) - picking 'km' or 'm'
+   sets both mode='dist' and that unit in a single call. */
+function segModeUnit(i,which,choice){ const b=S.sheet.draft.blocks[i];
+  const seg = which==='steady'? b : b[which];
+  if(choice==='time'){ seg.mode='time'; }
+  else {
+    if(seg.mode!=='dist' && seg.value<50) seg.value=which==='steady'?5000:400;
+    seg.mode='dist'; seg.unit=choice;
+  }
+  render(); }
 function segVal(i,which,v){ const b=S.sheet.draft.blocks[i];
   const seg = which==='steady'? b : b[which];
   seg.value = seg.mode==='time'? parseTimeInput(v) : parseDistInput(v); }
-function segUnit(i,which,unit){ const b=S.sheet.draft.blocks[i];
-  const seg = which==='steady'? b : b[which]; seg.unit=unit; render(); }
 function segDistPick(i,which,km){ const b=S.sheet.draft.blocks[i];
   const seg = which==='steady'? b : b[which]; seg.value=Math.round(km*1000); seg.unit='km'; render(); }
 function segDistStep(i,which,dir){ const b=S.sheet.draft.blocks[i];
