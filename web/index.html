@@ -478,6 +478,11 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 
 /* ============ auth ============ */
 let AUTH={ready:false, session:null};
+/* backend routes are per-user now - every Garmin call needs this Supabase
+   session token so the server knows whose garmin_connections row to use. */
+function authHeaders(){
+  return AUTH.session? {'Authorization':'Bearer '+AUTH.session.access_token} : {};
+}
 let pendingSave=null; // in-flight save() upsert, if any - see loadCloudData()
 async function loadCloudData(userId){
   if(pendingSave) await pendingSave; // flush any in-flight write first, or we'd read stale data and clobber it
@@ -594,6 +599,28 @@ const T={
   thrPace:{he:'קצב סף (דק׳/ק״מ)', en:'Threshold pace (min/km)'},
   connectedAs:{he:'מחובר כ-', en:'Signed in as '},
   syncNote:{he:'. התוכנית מסונכרנת אוטומטית לכל המכשירים שבהם תתחבר עם אותו חשבון.', en:'. Your plan syncs automatically to every device you sign into with this account.'},
+  secGarmin:{he:'גרמין', en:'Garmin'},
+  garminConnected:{he:'מחובר לגרמין', en:'Connected to Garmin'},
+  garminNotConnected:{he:'לא מחובר לגרמין', en:'Not connected to Garmin'},
+  garminNeedsReauth:{he:'החיבור לגרמין פג - יש להתחבר מחדש', en:'Garmin connection expired - reconnect needed'},
+  garminCheckingStatus:{he:'בודק סטטוס...', en:'Checking status...'},
+  garminConnectBtn:{he:'חבר את גרמין שלי', en:'Connect my Garmin'},
+  garminReconnectBtn:{he:'התחבר מחדש', en:'Reconnect'},
+  garminDisconnectBtn:{he:'נתק', en:'Disconnect'},
+  garminEmailLabel:{he:'אימייל גרמין', en:'Garmin email'},
+  garminPasswordLabel:{he:'סיסמת גרמין', en:'Garmin password'},
+  garminConnectSubmit:{he:'התחבר', en:'Connect'},
+  garminCancel:{he:'ביטול', en:'Cancel'},
+  garminMfaNote:{he:'לחשבון הזה יש אימות דו-שלבי, ולא ניתן להשלים אותו כאן. הרץ מקומית python scripts/generate_token.py והדבק למטה את הטוקן שהוא מדפיס.', en:'This account has two-factor auth, which can’t be completed here. Run python scripts/generate_token.py locally and paste the token it prints below.'},
+  garminTokenLabel:{he:'טוקן חיבור', en:'Connection token'},
+  garminTokenPlaceholder:{he:'הדבק כאן את הטוקן...', en:'Paste the token here...'},
+  garminConnectTokenSubmit:{he:'חבר עם טוקן', en:'Connect with token'},
+  garminHaveTokenLink:{he:'יש לי כבר טוקן', en:'I already have a token'},
+  garminConnectedToast:{he:'גרמין חובר בהצלחה', en:'Garmin connected successfully'},
+  garminDisconnectedToast:{he:'החיבור לגרמין נותק', en:'Garmin disconnected'},
+  garminNeedsReauthToast:{he:'החיבור לגרמין פג. עבור להגדרות > גרמין כדי להתחבר מחדש.', en:'Your Garmin connection expired. Go to Settings > Garmin to reconnect.'},
+  garminLastSync:{he:'סנכרון אחרון: ', en:'Last synced: '},
+  garminConnectError:{he:'החיבור נכשל: ', en:'Connect failed: '},
   save:{he:'שמור', en:'Save'},
   signOut:{he:'התנתק', en:'Sign out'},
   serverErrorAlert:{he:'השרת החזיר שגיאה: ', en:'The server returned an error: '},
@@ -1600,7 +1627,7 @@ async function loadRunSplits(){
   if(!w || !w.actual || !w.actual.activityId) return;
   S.sheet.splitsLoading=true; render();
   try{
-    const r=await fetch(`${BACKEND_BASE}/activity-splits?activityId=${w.actual.activityId}`);
+    const r=await fetch(`${BACKEND_BASE}/activity-splits?activityId=${w.actual.activityId}`,{headers:authHeaders()});
     const data=await r.json();
     if(!S.sheet || S.sheet.mode!=='run') return; // sheet closed while the request was in flight
     S.sheet.splits=data.splits||[];
@@ -2196,6 +2223,54 @@ function sendSheet(){
 function sheetEntering(){ const e=!S.sheet.entered; S.sheet.entered=true; return e?' entering':''; }
 
 /* profile sheet */
+function garminSectionHTML(){
+  const st=S.sheet.garminStatus;
+  const form=S.sheet.garminForm;
+
+  let statusLine;
+  if(!st) statusLine=`<div class="note">${t('garminCheckingStatus')}</div>`;
+  else if(st.status==='connected') statusLine=`<div class="note"><span style="color:var(--easy)">●</span> ${t('garminConnected')}${st.garmin_email?' · '+st.garmin_email:''}</div>`;
+  else if(st.status==='needs_reauth') statusLine=`<div class="note"><span style="color:var(--work)">●</span> ${t('garminNeedsReauth')}</div>`;
+  else statusLine=`<div class="note"><span style="color:var(--muted2)">●</span> ${t('garminNotConnected')}</div>`;
+
+  let actions='';
+  if(!form && st && st.status==='connected'){
+    actions=`<button class="ghost signout" onclick="disconnectGarmin()">${t('garminDisconnectBtn')}</button>`;
+  } else if(!form && st){
+    actions=`<button class="ghost" onclick="openGarminConnect()">${st.status==='needs_reauth'?t('garminReconnectBtn'):t('garminConnectBtn')}</button>`;
+  }
+
+  let formHTML='';
+  if(form && form.mode==='password'){
+    formHTML=`
+      <div class="field"><label>${t('garminEmailLabel')}</label>
+        <input type="email" dir="ltr" value="${form.email}" oninput="S.sheet.garminForm.email=this.value" ${form.busy?'disabled':''}></div>
+      <div class="field"><label>${t('garminPasswordLabel')}</label>
+        <input type="password" dir="ltr" value="${form.password}" oninput="S.sheet.garminForm.password=this.value" ${form.busy?'disabled':''}></div>
+      <button class="primary disp" style="margin-bottom:8px" onclick="connectGarmin()" ${form.busy?'disabled':''}>${t('garminConnectSubmit')}</button>
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <button class="ghost" style="margin:0; padding:0; text-decoration:underline; color:var(--muted); font-size:12px" onclick="garminUseToken()" ${form.busy?'disabled':''}>${t('garminHaveTokenLink')}</button>
+        <button class="ghost" style="margin:0; padding:0; text-decoration:underline; color:var(--muted); font-size:12px" onclick="closeGarminForm()" ${form.busy?'disabled':''}>${t('garminCancel')}</button>
+      </div>`;
+  } else if(form && form.mode==='token'){
+    formHTML=`
+      <div class="note">${t('garminMfaNote')}</div>
+      <div class="field"><label>${t('garminTokenLabel')}</label>
+        <textarea dir="ltr" placeholder="${t('garminTokenPlaceholder')}" oninput="S.sheet.garminForm.token=this.value" ${form.busy?'disabled':''}
+          style="width:100%; min-height:70px; background:var(--panel); border:1px solid var(--line); color:var(--txt);
+          border-radius:12px; padding:12px; font-family:'JetBrains Mono'; font-size:12px; resize:vertical; box-sizing:border-box">${form.token||''}</textarea></div>
+      <button class="primary disp" style="margin-bottom:8px" onclick="connectGarminToken()" ${form.busy?'disabled':''}>${t('garminConnectTokenSubmit')}</button>
+      <button class="ghost" style="margin:0; padding:0; text-decoration:underline; color:var(--muted); font-size:12px" onclick="closeGarminForm()" ${form.busy?'disabled':''}>${t('garminCancel')}</button>`;
+  }
+
+  return `<div class="drawersec">
+    <div class="minilbl">${t('secGarmin')}</div>
+    ${statusLine}
+    ${st && st.status==='connected' && st.last_sync_at? `<div class="note" style="margin-top:-8px">${t('garminLastSync')}${new Date(st.last_sync_at).toLocaleString(S.lang==='he'?'he-IL':'en-US')}</div>`:''}
+    ${actions}
+    ${formHTML}
+  </div>`;
+}
 function profileSheet(){
   const p=S.profile;
   const googleAvatar=AUTH.session?.user?.user_metadata?.avatar_url||AUTH.session?.user?.user_metadata?.picture||'';
@@ -2259,6 +2334,8 @@ function profileSheet(){
       <div class="note">${t('connectedAs')}${AUTH.session?.user?.email||''}${t('syncNote')}</div>
       <button class="ghost signout" onclick="signOut()">${t('signOut')}</button>
     </div>
+
+    ${garminSectionHTML()}
 
     <div class="drawersec">
       <button class="primary disp" onclick="saveProfile()">${t('save')}</button>
@@ -2396,7 +2473,67 @@ function dateJumpPick(dateStr){
 // touch/click pair firing close together on some devices) reuses the sheet
 // already being opened instead of replacing it with a fresh instance - which
 // would restart its entrance animation and look like the sheet opened twice.
-function openProfile(){ if(S.sheet && S.sheet.mode==='profile') return; S.sheet={mode:'profile', photoMenuOpen:false}; render(); }
+function openProfile(){
+  if(S.sheet && S.sheet.mode==='profile') return;
+  S.sheet={mode:'profile', photoMenuOpen:false, garminStatus:null, garminForm:null};
+  render();
+  loadGarminStatus();
+}
+
+/* ---- per-user Garmin connection (Settings > Garmin) ---- */
+async function loadGarminStatus(){
+  try{
+    const r=await fetch(`${BACKEND_BASE}/garmin/status`,{headers:authHeaders()});
+    const data=await r.json();
+    if(!S.sheet || S.sheet.mode!=='profile') return; // sheet closed before this resolved
+    S.sheet.garminStatus=data; render();
+  }catch(e){ /* leave status as "checking" - not critical, user can retry by reopening */ }
+}
+function openGarminConnect(){ S.sheet.garminForm={mode:'password', email:'', password:'', token:'', busy:false}; render(); }
+function garminUseToken(){ S.sheet.garminForm={mode:'token', token:'', busy:false}; render(); }
+function closeGarminForm(){ S.sheet.garminForm=null; render(); }
+async function connectGarmin(){
+  const f=S.sheet.garminForm;
+  if(!f.email || !f.password) return;
+  f.busy=true; render();
+  try{
+    const r=await fetch(`${BACKEND_BASE}/garmin/connect`,{method:'POST',
+      headers:{'Content-Type':'application/json', ...authHeaders()},
+      body:JSON.stringify({email:f.email, password:f.password})});
+    const data=await r.json();
+    if(!r.ok){ toast(t('garminConnectError')+(data.detail||r.statusText),'err'); f.busy=false; render(); return; }
+    if(data.status==='mfa_required'){ garminUseToken(); toast(t('garminMfaNote')); return; }
+    S.sheet.garminForm=null; S.sheet.garminStatus=null; render();
+    toast(t('garminConnectedToast'),'ok');
+    loadGarminStatus();
+  }catch(e){
+    toast(t('garminConnectError')+e.message,'err'); f.busy=false; render();
+  }
+}
+async function connectGarminToken(){
+  const f=S.sheet.garminForm;
+  if(!f.token || !f.token.trim()) return;
+  f.busy=true; render();
+  try{
+    const r=await fetch(`${BACKEND_BASE}/garmin/connect-token`,{method:'POST',
+      headers:{'Content-Type':'application/json', ...authHeaders()},
+      body:JSON.stringify({token:f.token.trim()})});
+    const data=await r.json();
+    if(!r.ok){ toast(t('garminConnectError')+(data.detail||r.statusText),'err'); f.busy=false; render(); return; }
+    S.sheet.garminForm=null; S.sheet.garminStatus=null; render();
+    toast(t('garminConnectedToast'),'ok');
+    loadGarminStatus();
+  }catch(e){
+    toast(t('garminConnectError')+e.message,'err'); f.busy=false; render();
+  }
+}
+async function disconnectGarmin(){
+  try{
+    await fetch(`${BACKEND_BASE}/garmin/connection`,{method:'DELETE', headers:authHeaders()});
+  }catch(e){ /* best-effort - status refresh below will reflect whatever actually happened */ }
+  toast(t('garminDisconnectedToast'));
+  loadGarminStatus();
+}
 function togglePhotoMenu(){ S.sheet.photoMenuOpen=!S.sheet.photoMenuOpen; render(); }
 function openZones(){ if(S.sheet && S.sheet.mode==='zones') return; S.sheet={mode:'zones'}; render(); }
 function openRaces(){ if(S.sheet && S.sheet.mode==='races') return; S.sheet={mode:'races', raceDraft:{date:'',name:'',km:'',target:'',split:'negative'}}; render(); }
@@ -2798,10 +2935,11 @@ async function sendWeek(){
   const url=BACKEND_URL;
   save();
   S.sheet.sending=true; render();
-  const headers={'Content-Type':'application/json'};
+  const headers={'Content-Type':'application/json', ...authHeaders()};
   try{
     const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(buildPayload())});
     const data=await r.json();
+    if(data.error==='needs_reauth'){ toast(t('garminNeedsReauthToast'),'err'); return; }
     if(data.error){ toast(t('serverErrorAlert')+data.error,'err'); return; }
     const results=data.results||[];
     // buildPayload() and the backend both iterate in this same day/workout order,
@@ -2839,7 +2977,7 @@ function scoreWorkout(w){
    date in [since,until] present in S.plan - not tied to the currently viewed week,
    so it can run both for the manual "check" button and a silent background sync. */
 async function fetchAndApplyActivities(since,until){
-  const r=await fetch(`${BACKEND_BASE}/activities?since=${since}&until=${until}`);
+  const r=await fetch(`${BACKEND_BASE}/activities?since=${since}&until=${until}`,{headers:authHeaders()});
   const data=await r.json();
   if(data.error) return {matched:0, error:data.error};
   const acts=data.activities||[];
@@ -2885,6 +3023,7 @@ async function checkCompleted(){
   const wk=weekDates(S.offset);
   try{
     const {matched,error}=await fetchAndApplyActivities(ymd(wk[0]), ymd(wk[6]));
+    if(error==='needs_reauth'){ toast(t('garminNeedsReauthToast'),'err'); return; }
     if(error){ toast(t('serverErrorAlert')+error,'err'); return; }
     save(); render();
     toast(matched+' '+t('syncedSuffix'), matched>0?'ok':undefined);

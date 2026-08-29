@@ -5,25 +5,29 @@ Receives a week of workouts from the PWA, translates each into a structured
 Garmin running workout (warmup / repeat groups of effort+recovery / cooldown),
 uploads and schedules them to the given dates.
 
-Auth: uses a long-lived Garth token from the GARTH_TOKEN env var. No password
-is ever sent per request. Generate the token once with scripts/generate_token.py
-(runs fine in Google Colab from a phone) and paste it into the Vercel env vars.
-
-Optional: set API_SECRET in the Vercel env to require an x-api-secret header,
-so the public endpoint is not open to anyone.
+Auth: per-user. Every route below requires an
+`Authorization: Bearer <supabase access token>` header (the same session
+token the frontend already gets from Supabase auth); verify_user() checks it
+against Supabase and returns the caller's user id, which is the key into the
+`garmin_connections` table (encrypted Garmin token per user - see
+garmin_auth.py and server/sql/garmin_connections.sql). There is no more
+single global Garmin identity - each user connects their own account via
+POST /garmin/connect (email+password) or, for accounts with MFA,
+POST /garmin/connect-token (paste a token generated locally with
+scripts/generate_token.py - see that script and CLAUDE.md for why MFA can't
+be completed through this API directly).
 
 Vercel picks up the module-level `app` (ASGI). See vercel.json for routing.
 Local run (optional): uvicorn api.index:app --reload --port 8000
 """
 
-import os
 from typing import List, Optional, Literal
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from garminconnect import Garmin
+from garminconnect import Garmin, GarminConnectAuthenticationError, GarminConnectTooManyRequestsError
 from garminconnect.workout import (
     RunningWorkout, FitnessEquipmentWorkout, StrengthWorkout, BaseWorkout,
     WorkoutSegment, ExecutableStep,
@@ -32,6 +36,21 @@ from garminconnect.workout import (
     create_interval_step, create_recovery_step, create_repeat_group,
     create_strength_set,
 )
+
+try:
+    # Vercel's Python runtime loads this file directly (adds its own directory
+    # to sys.path), so a flat import resolves the sibling module.
+    from garmin_auth import (
+        verify_user, get_client_for_user, save_connection, mark_synced,
+        disconnect as disconnect_connection, get_connection, NeedsReauth,
+    )
+except ImportError:
+    # Local `uvicorn api.index:app` (documented above) loads this as the
+    # api.index submodule of a package instead - needs the relative form.
+    from .garmin_auth import (
+        verify_user, get_client_for_user, save_connection, mark_synced,
+        disconnect as disconnect_connection, get_connection, NeedsReauth,
+    )
 
 app = FastAPI(title="Maslul Garmin Backend")
 app.add_middleware(
@@ -97,21 +116,6 @@ def _describe_exception(e: Exception, depth: int = 4) -> str:
         cur = nxt
     return " | caused by: ".join(parts)
 
-def get_client() -> Garmin:
-    token = os.environ.get("GARTH_TOKEN")
-    if not token:
-        raise HTTPException(500, "GARTH_TOKEN env var is not set on the server")
-    client = Garmin()
-    # garminconnect 0.3.x: login(tokenstore=...) accepts the raw token string
-    # (>512 chars) produced by client.client.dumps() in scripts/generate_token.py.
-    # It restores the OAuth tokens and refreshes them if they are about to expire.
-    client.login(tokenstore=token)
-    return client
-
-def check_secret(x_api_secret: Optional[str]):
-    expected = os.environ.get("API_SECRET")
-    if expected and x_api_secret != expected:
-        raise HTTPException(401, "bad or missing x-api-secret")
 
 # ---------- workout translation ----------
 
@@ -301,15 +305,85 @@ def build_workout(w: Workout):
 
 @app.get("/")
 def health():
-    return {"status": "ok", "service": "maslul-garmin", "token_set": bool(os.environ.get("GARTH_TOKEN"))}
+    return {"status": "ok", "service": "maslul-garmin"}
+
+# ---------- Garmin connection management (per user) ----------
+
+class ConnectBody(BaseModel):
+    email: str
+    password: str
+
+class ConnectTokenBody(BaseModel):
+    token: str
+
+@app.post("/garmin/connect")
+def garmin_connect(body: ConnectBody, authorization: Optional[str] = Header(default=None)):
+    """Email+password connect. Only works for accounts without MFA enabled -
+    garminconnect's MFA challenge state lives entirely in one Python object's
+    memory (no serializable "resume" token), so it can't be completed across
+    two separate stateless HTTP requests the way Vercel functions work. An
+    account with MFA gets {"status": "mfa_required"} and should be connected
+    via /garmin/connect-token instead (see scripts/generate_token.py).
+    """
+    user_id = verify_user(authorization)
+    client = Garmin(body.email, body.password, return_on_mfa=True)
+    try:
+        mfa_status, _ = client.login()
+    except GarminConnectAuthenticationError:
+        raise HTTPException(401, "אימייל או סיסמה שגויים")
+    except GarminConnectTooManyRequestsError:
+        raise HTTPException(429, "יותר מדי ניסיונות התחברות - נסה שוב בעוד כמה דקות")
+    except Exception as e:
+        raise HTTPException(502, f"garmin login failed: {_describe_exception(e)}")
+    if mfa_status == "needs_mfa":
+        return {"status": "mfa_required"}
+    token = client.client.dumps()
+    save_connection(user_id, token, garmin_email=body.email)
+    return {"status": "connected"}
+
+@app.post("/garmin/connect-token")
+def garmin_connect_token(body: ConnectTokenBody, authorization: Optional[str] = Header(default=None)):
+    """Fallback for MFA accounts: paste a token produced locally by
+    scripts/generate_token.py (same script/flow that generated the old
+    single-user GARTH_TOKEN, now repurposed to hand the user a per-account
+    token to paste in here instead of an env var to set on Vercel)."""
+    user_id = verify_user(authorization)
+    client = Garmin()
+    try:
+        client.login(tokenstore=body.token)
+    except Exception as e:
+        raise HTTPException(400, f"הטוקן לא תקין: {_describe_exception(e)}")
+    save_connection(user_id, body.token)
+    return {"status": "connected"}
+
+@app.get("/garmin/status")
+def garmin_status(authorization: Optional[str] = Header(default=None)):
+    user_id = verify_user(authorization)
+    row = get_connection(user_id)
+    if not row:
+        return {"connected": False, "status": "disconnected", "garmin_email": None, "last_sync_at": None}
+    return {
+        "connected": row["status"] == "connected",
+        "status": row["status"],
+        "garmin_email": row.get("garmin_email"),
+        "last_sync_at": row.get("last_sync_at"),
+    }
+
+@app.delete("/garmin/connection")
+def garmin_disconnect(authorization: Optional[str] = Header(default=None)):
+    user_id = verify_user(authorization)
+    disconnect_connection(user_id)
+    return {"status": "disconnected"}
+
+# ---------- workout scheduling / activity read-back ----------
 
 @app.post("/schedule-week")
-def schedule_week(payload: WeekPayload, x_api_secret: Optional[str] = Header(default=None)):
-    check_secret(x_api_secret)
+def schedule_week(payload: WeekPayload, authorization: Optional[str] = Header(default=None)):
+    user_id = verify_user(authorization)
     try:
-        client = get_client()
-    except HTTPException:
-        raise
+        client = get_client_for_user(user_id)
+    except NeedsReauth:
+        return {"results": [], "error": "needs_reauth"}
     except Exception as e:
         return {"results": [], "error": f"garmin auth failed: {_describe_exception(e)}"}
 
@@ -330,23 +404,24 @@ def schedule_week(payload: WeekPayload, x_api_secret: Optional[str] = Header(def
             results.append({"name": w.name, "date": w.date, "ok": True, "workoutId": wid})
         except Exception as e:
             results.append({"name": w.name, "date": w.date, "ok": False, "error": str(e)})
+    mark_synced(user_id)
     return {"results": results}
 
 @app.get("/activities")
-def activities(since: str, until: Optional[str] = None, x_api_secret: Optional[str] = Header(default=None)):
+def activities(since: str, until: Optional[str] = None, authorization: Optional[str] = Header(default=None)):
     """Completed runs in a date range, for matching back against pushed workouts.
     `workoutId` on the activity (when present) is the same id returned by
     /schedule-week when the structured workout was uploaded, so the frontend
     can match a completed run to its plan entry exactly instead of guessing
     by date/type.
     """
-    check_secret(x_api_secret)
+    user_id = verify_user(authorization)
     try:
-        client = get_client()
-    except HTTPException:
-        raise
+        client = get_client_for_user(user_id)
+    except NeedsReauth:
+        return {"activities": [], "error": "needs_reauth"}
     except Exception as e:
-        return {"activities": [], "error": f"garmin auth failed: {e}"}
+        return {"activities": [], "error": f"garmin auth failed: {_describe_exception(e)}"}
     try:
         raw = client.get_activities_by_date(since, until or since, "running")
     except Exception as e:
@@ -378,7 +453,7 @@ def activities(since: str, until: Optional[str] = None, x_api_secret: Optional[s
     return {"activities": out}
 
 @app.get("/activity-splits")
-def activity_splits(activityId: str, x_api_secret: Optional[str] = Header(default=None)):
+def activity_splits(activityId: str, authorization: Optional[str] = Header(default=None)):
     """Per-km (or per-lap) splits for one completed activity, fetched on demand
     when the user opens a run's detail view - not worth pulling for every activity
     in /activities since it's a separate Garmin request per run.
@@ -390,11 +465,11 @@ def activity_splits(activityId: str, x_api_secret: Optional[str] = Header(defaul
     key names - this is the same fragility CLAUDE.md warns about for the
     workout step-builder helpers.
     """
-    check_secret(x_api_secret)
+    user_id = verify_user(authorization)
     try:
-        client = get_client()
-    except HTTPException:
-        raise
+        client = get_client_for_user(user_id)
+    except NeedsReauth:
+        return {"splits": [], "error": "needs_reauth"}
     except Exception as e:
         return {"splits": [], "error": f"garmin auth failed: {_describe_exception(e)}"}
     try:

@@ -5,7 +5,10 @@ owner's Garmin watch. Weekly view, swipe between weeks, one or more workouts per
 day, each with warmup + main set + cooldown. Once a week the owner sends the week
 to Garmin Connect; the workouts then sync to the watch as scheduled daily workouts.
 
-Single user, personal use. Hebrew UI, right to left.
+Built for one owner, but usable by a few trusted people who sign in with
+Google (Supabase auth) - each connects their own Garmin account (see "Garmin
+auth" below) and gets their own plan, synced per account. Not a public
+product. Hebrew UI, right to left.
 
 ## Architecture
 
@@ -26,20 +29,19 @@ Frontend and backend can be deployed separately. Frontend can go to GitHub Pages
 1. Garmin integration uses the UNofficial `garminconnect` library, not the official
    Garmin Connect Developer Program Training API. The official API needs Garmin
    business approval and is slow; the unofficial path works now for one user.
-2. Auth is TOKEN based, not password per request. A long-lived Garth token
-   (~1 year, auto-refresh) lives in the `GARTH_TOKEN` env var. Password is never
-   sent from the app or stored. Token generated once via `scripts/generate_token.py`.
-   To refresh it (e.g. after a Garmin-side 401/"Failed to retrieve social
-   profile" error), run `scripts/refresh_token.bat` - prompts for Garmin
-   credentials once, writes the token, then pushes it to Vercel and redeploys
-   the backend in one go (chains `generate_token.py` + `set_garth_token.bat`).
-3. As of 2026-08, `scripts/generate_token.py` has hit a Garmin login page titled
+2. Auth is per user, TOKEN based, not password per request - see "Garmin auth
+   (per user)" below for the full model (replaced the single global
+   `GARTH_TOKEN` env var in 2026-08).
+3. As of 2026-08, `scripts/generate_token.py` had hit a Garmin login page titled
    "GARMIN Authentication Application" (the real title Garmin's authenticator-app
-   MFA challenge uses) even though the owner reports not using MFA — cause
-   unconfirmed; could be MFA enabled server-side after a security event, or an
-   anti-bot challenge reusing that page for a rate-limited IP. `garminconnect` is
-   pinned to `0.3.9` regardless, since its `mobile`/`portal` login strategies
-   handle rate limits and MFA more robustly than `0.3.6`'s `widget` fallback.
+   MFA challenge uses) even though the owner reported not using MFA on that
+   account — likely explanation found later the same month while building
+   per-user connect (see "Garmin auth" below): `garminconnect`'s widget-flow
+   login strategy can land on that page as an anti-bot/rate-limit challenge
+   even for accounts without MFA truly enabled, not only for real MFA.
+   `garminconnect` is pinned to `0.3.9` regardless, since its `mobile`/`portal`
+   login strategies handle rate limits and MFA more robustly than `0.3.6`'s
+   `widget` fallback.
 4. As of 2026-08, six sports are supported: running, rowing, elliptical,
    strength, crossfit, yoga. Sport is the top-level pick in the UI; running/
    rowing/elliptical additionally take a "kind" sub-type (intervals, tempo,
@@ -70,6 +72,44 @@ to pin or bump the `garminconnect` version. The step-builder helper signatures
 (`create_interval_step`, `create_repeat_group`, etc.) may differ across versions.
 If a call errors, check the installed version:
 `python -c "import garminconnect.workout as w; help(w)"`.
+
+## Garmin auth (per user)
+
+Each user connects their own Garmin account; there is no more single global
+identity. Every backend route that touches Garmin requires an
+`Authorization: Bearer <supabase access token>` header (the frontend already
+has this from Supabase auth) - `server/api/garmin_auth.py`'s `verify_user()`
+validates it by asking Supabase's own `/auth/v1/user` endpoint (works
+regardless of the project's JWT signing scheme, no secret to manage locally)
+and returns the caller's Supabase user id.
+
+That id is the primary key into a `garmin_connections` table in the same
+Supabase Postgres project already used for `user_data` (schema:
+`server/sql/garmin_connections.sql`, applied by hand in the Supabase SQL
+editor - this repo has no migration tooling). Each row holds one user's
+Garmin token, AES-256-GCM encrypted (key: `GARMIN_TOKEN_ENCRYPTION_KEY`) and
+accessed only by the backend via Supabase's PostgREST API with the
+service-role key - the frontend never queries this table directly, unlike
+`user_data`.
+
+Connecting an account, from the app (`web/index.html`, Settings > Garmin,
+`garminSectionHTML()`/`connectGarmin()`):
+- `POST /garmin/connect` with email+password. Works for accounts without MFA.
+- If Garmin challenges for MFA, this returns `{"status":"mfa_required"}`
+  instead of hanging: garminconnect 0.3.9's MFA state (`_mfa_session` and
+  friends) lives only on one in-memory Python object with no way to export
+  and resume it, so a "submit password now, code later" flow across two
+  separate Vercel requests isn't something the library supports. The app
+  falls back to `POST /garmin/connect-token`: paste a token generated by
+  running `scripts/generate_token.py` locally (same script that used to
+  produce `GARTH_TOKEN` - it still handles MFA fine because it's one
+  continuous local process that can block on `input()` for the code).
+
+`GET /garmin/status` / `DELETE /garmin/connection` read/clear the caller's
+own row. `get_client_for_user()` restores a session straight from the stored
+token string - `garminconnect`'s `Garmin().login(tokenstore=...)` accepts the
+raw dumped token directly once it's over 512 chars (treated as inline data,
+not a file path), so no temp files are needed, per-user or otherwise.
 
 ## Workout data model (frontend -> backend JSON)
 
@@ -115,9 +155,18 @@ strength and crossfit.
 
 ## Environment variables (backend, set in Vercel)
 
-- `GARTH_TOKEN` (required) - the Garmin token string from generate_token.py
-- `API_SECRET` (optional) - if set, requests must send header `x-api-secret`.
-  The app has a matching "קוד סודי" field under the send sheet.
+- `GARMIN_TOKEN_ENCRYPTION_KEY` (required) - base64 32-byte AES-256-GCM key
+  encrypting Garmin tokens at rest. Generate once:
+  `python -c "import os,base64;print(base64.b64encode(os.urandom(32)).decode())"`.
+- `SUPABASE_URL` (required) - same project the frontend uses
+  (`https://qvbdnaeewytfoolmubch.supabase.co`, already hardcoded as a
+  fallback default in `garmin_auth.py`, but set explicitly anyway).
+- `SUPABASE_ANON_KEY` (required) - same publishable key hardcoded in
+  `web/index.html`; used to validate a caller's session token against
+  Supabase's `/auth/v1/user`.
+- `SUPABASE_SERVICE_ROLE_KEY` (required) - Supabase dashboard > Settings >
+  API. Bypasses RLS for the backend's `garmin_connections` reads/writes.
+  Never expose this to the frontend.
 
 ## Deploy
 
@@ -132,11 +181,16 @@ build rather than a stale cached PWA. See `CHANGELOG.md` for the deploy history.
 
 Backend (Vercel, from the `server/` folder as project root):
 1. Push repo to GitHub, or use the Vercel CLI / dashboard.
-2. Set root directory to `server/`. Add `GARTH_TOKEN` (and optionally `API_SECRET`).
-3. Deploy. Health check: `GET https://<project>.vercel.app/` returns
-   `{"status":"ok","token_set":true}`.
-4. In the app, open the profile/send sheet and set the backend URL to
-   `https://<project>.vercel.app/schedule-week` and the secret if used.
+2. Set root directory to `server/`. Add the four env vars from "Environment
+   variables" above.
+3. Apply `server/sql/garmin_connections.sql` once in the Supabase SQL editor
+   (not part of `deploy.bat` - no migration tooling in this repo).
+4. Deploy. Health check: `GET https://<project>.vercel.app/` returns
+   `{"status":"ok"}`.
+5. Each user connects their own Garmin account from Settings > Garmin in the
+   app (see "Garmin auth" above) - nothing to configure per-deploy anymore.
+   `BACKEND_BASE`/`BACKEND_URL` in `web/index.html` are still hardcoded
+   constants, not user-configurable.
 
 Frontend: publish `web/index.html` to GitHub Pages (repo owner: `ronsway`) or any
 static host. CORS on the backend is open, so any origin works.
@@ -147,11 +201,13 @@ backend URL accordingly.
 
 ## Roadmap (in order)
 
-1. DONE - backend deployed to Vercel, GARTH_TOKEN wired.
+1. DONE - backend deployed to Vercel.
 2. DONE - Supabase (Google) auth, plan/profile synced per cloud account (since v1.0.6).
 3. DONE - non-running types: rowing, elliptical, strength (v1.0.50), yoga and
    crossfit (v1.0.55+). See "Key decisions" #4 for the sport/kind model.
-4. Nice-to-haves (next up): workout templates/library, target pace/HR zones from
+4. DONE - per-user Garmin connections (2026-08), replacing the single global
+   `GARTH_TOKEN`. See "Garmin auth (per user)".
+5. Nice-to-haves (next up): workout templates/library, target pace/HR zones from
    the profile, duplicating a week, editing an already-pushed week (delete +
    re-upload).
 

@@ -1,10 +1,16 @@
 """
-One-time Garmin token generator
-================================
-Run this to produce the GARTH_TOKEN string for the backend, e.g. whenever the
-stored token gets rejected (401 / "Failed to retrieve social profile") and
-needs replacing. Runs anywhere with Python, including Google Colab from a
-phone browser (colab.research.google.com -> New notebook -> paste -> run).
+Garmin connection token generator (for accounts with MFA)
+===========================================================
+Maslul connects most Garmin accounts straight from the app (Settings > Garmin
+> email+password). The one case that can't be done from the app is an account
+with MFA/2FA enabled: the login library's MFA challenge only works within a
+single continuous process blocking on input() for the code, which a
+stateless web request can't do (see CLAUDE.md's "Garmin auth" section). This
+script runs that continuous login locally, then hands you a token to paste
+into Maslul's "יש לי כבר טוקן" field instead.
+
+Runs anywhere with Python, including Google Colab from a phone browser
+(colab.research.google.com -> New notebook -> paste -> run):
 
     pip install garminconnect
     python generate_token.py
@@ -17,10 +23,10 @@ asks for one). To skip the prompts on repeat runs, create scripts/.env.garmin
     GARMIN_PASSWORD=your-password
 
 MFA, if triggered, is still asked interactively - there's no way to script a
-one-time code. When run locally (not Colab), the token is written straight to
-server/.env.garth_token (gitignored, never printed in full) so
-scripts/set_garth_token.bat can push it to Vercel without it ever passing
-through a chat or being retyped by hand.
+one-time code. When run locally (not Colab), the token is also written to
+server/.env.garth_token (gitignored, never printed in full) purely as a local
+backup copy - the token itself is meant to be pasted into the app, not pushed
+anywhere with the Vercel CLI anymore.
 """
 
 from getpass import getpass
@@ -59,10 +65,11 @@ token_file = Path(__file__).resolve().parent.parent / "server" / ".env.garth_tok
 try:
     with open(token_file, "w", newline="") as f:
         f.write(token)
-    print(f"\nToken written to {token_file}")
-    print("Run scripts\\set_garth_token.bat to push it to Vercel.")
+    print(f"\nToken saved locally to {token_file} (backup copy).")
 except OSError:
-    # e.g. running in Colab where server/ doesn't exist - fall back to printing
-    print("\n\n===== copy the line below into GARTH_TOKEN =====\n")
-    print(token)
-    print("\n===== end =====")
+    pass  # e.g. running in Colab where server/ doesn't exist - fine, just print below
+
+print("\n\n===== paste the line below into Maslul > Settings > Garmin > "
+      "\"יש לי כבר טוקן\" =====\n")
+print(token)
+print("\n===== end =====")
