@@ -40,9 +40,26 @@ Frontend and backend can be deployed separately. Frontend can go to GitHub Pages
    anti-bot challenge reusing that page for a rate-limited IP. `garminconnect` is
    pinned to `0.3.9` regardless, since its `mobile`/`portal` login strategies
    handle rate limits and MFA more robustly than `0.3.6`'s `widget` fallback.
-4. First version is RUNNING ONLY. Strength / rowing / elliptical come later
-   (Garmin restricts third-party strength pushes; those will use
-   `FitnessEquipmentWorkout` and may land with reduced structure).
+4. As of 2026-08, six sports are supported: running, rowing, elliptical,
+   strength, crossfit, yoga. Sport is the top-level pick in the UI; running/
+   rowing/elliptical additionally take a "kind" sub-type (intervals, tempo,
+   hills, fartlek, volume, recovery - plus race, running-only). Strength/
+   crossfit have no kind - they're sets-of-reps (`exercises`, not `blocks`)
+   with no dedicated Garmin workout model, so the backend builds them as
+   `BaseWorkout` tagged `strength_training`/`hiit`. Yoga is also `BaseWorkout`
+   (tagged `yoga` - Garmin has the sport type but no dedicated model class).
+   Crossfit's exercise list is meant to be system-generated, not hand-built:
+   `generateCrossfitExercises()` picks a random 5-6 movements from a curated
+   pool with randomized sets/reps/rest; the editor shows the result as a
+   read-only summary by default (manual per-exercise editing is one tap away
+   behind "ערוך ידנית", not the default view).
+5. Sport-picker icons are pictograms cropped directly out of an AI-generated
+   reference image the owner supplied (not hand-drawn), background stripped
+   and recolored per sport's accent color, embedded as base64 PNG data URIs
+   in `SPORT_ICON_DATA` (`web/index.html`) - keeps the file self-contained
+   with no separate asset folder. If icons need to change again, redo the
+   crop-and-recolor from a reference image rather than hand-drawing SVG paths
+   - attempts at that were repeatedly rejected as looking incomplete/wrong.
 
 ## Known fragility (important)
 
@@ -56,13 +73,21 @@ If a call errors, check the installed version:
 
 ## Workout data model (frontend -> backend JSON)
 
+`sport` (running|rowing|elliptical|strength|crossfit|yoga) drives the backend's
+Garmin sport-type dispatch and step-builder choice. `type` is the sub-"kind"
+for cardio sports (intervals|tempo|hills|fartlek|volume|recovery|race, race
+running-only) - for strength/crossfit/yoga, `type` just equals `sport` (no
+sub-kind). Cardio sports use `blocks`; strength/crossfit use `exercises`
+instead (sets-of-reps has no time/dist shape) and `blocks` stays `[]`; yoga
+uses a single `blocks` steady entry like any other cardio sport.
+
 ```json
 {
   "athlete": { "name": "...", "maxHR": "...", "restHR": "..." },
   "workouts": [{
     "date": "2027-05-04",
     "name": "אינטרוולים",
-    "type": "intervals|hills|fartlek|volume",
+    "type": "intervals",
     "sport": "running",
     "warmupSec": 600,
     "cooldownSec": 600,
@@ -71,14 +96,22 @@ If a call errors, check the installed version:
         "work":     { "mode": "time|dist", "value": 180 },
         "recovery": { "mode": "time|dist", "value": 120 } },
       { "kind": "steady", "mode": "time|dist", "value": 2700 }
-    ]
+    ],
+    "exercises": []
   }]
 }
 ```
-`mode: time` -> value in seconds. `mode: dist` -> value in meters.
+`mode: time` -> value in seconds. `mode: dist` -> value in meters. A strength/
+crossfit workout instead carries `"exercises": [{ "category": "SQUAT", "sets": 3,
+"reps": 10, "weightKg": null, "restSec": 90 }, ...]` (`category` is a Garmin
+exercise-category key, see `STRENGTH_CATEGORIES`/`CROSSFIT_CATEGORIES` in
+`web/index.html`) and `blocks: []`.
+
 Backend maps: warmup -> `create_warmup_step`, repeat block ->
 `create_repeat_group(reps, [effort, recovery])`, steady -> interval/distance step,
-cooldown -> `create_cooldown_step`.
+cooldown -> `create_cooldown_step`. `exercises` -> `build_strength_steps`
+(warmup + one `create_strength_set` per exercise + cooldown), used for both
+strength and crossfit.
 
 ## Environment variables (backend, set in Vercel)
 
@@ -114,13 +147,13 @@ backend URL accordingly.
 
 ## Roadmap (in order)
 
-1. Deploy backend to Vercel, wire GARTH_TOKEN, confirm a real workout reaches the watch.
-2. Supabase auth so the plan is tied to a cloud user account, not just one device.
-   Owner already uses Supabase; store workouts and the plan per user.
-3. Add non-running types: strength, rowing, elliptical (FitnessEquipmentWorkout /
-   strength workout models), accepting reduced structure where Garmin limits it.
-4. Nice-to-haves: workout templates/library, target pace/HR zones from the profile,
-   duplicating a week, editing an already-pushed week (delete + re-upload).
+1. DONE - backend deployed to Vercel, GARTH_TOKEN wired.
+2. DONE - Supabase (Google) auth, plan/profile synced per cloud account (since v1.0.6).
+3. DONE - non-running types: rowing, elliptical, strength (v1.0.50), yoga and
+   crossfit (v1.0.55+). See "Key decisions" #4 for the sport/kind model.
+4. Nice-to-haves (next up): workout templates/library, target pace/HR zones from
+   the profile, duplicating a week, editing an already-pushed week (delete +
+   re-upload).
 
 ## Owner working preferences
 

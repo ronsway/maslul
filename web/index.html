@@ -309,6 +309,7 @@
   .exchips button{padding:8px 11px; border-radius:9px; background:var(--panel); border:1px solid var(--line);
     font-family:'Assistant'; font-weight:600; font-size:12.5px; color:var(--txt);}
   .exchips button.on{border-color:var(--strength); background:var(--type-on-bg);}
+  .unittoggle{flex:none; width:88px;}
 
   .blk{background:var(--panel); border:1px solid var(--line); border-radius:15px; padding:13px; margin-bottom:11px;}
   .blk .bh{display:flex; align-items:center; justify-content:space-between; margin-bottom:11px;}
@@ -2002,13 +2003,19 @@ function segEditor(seg,i,which,sport){
   const allowDist=sport!=='yoga';
   const isTime=seg.mode==='time' || !allowDist;
   const unit=seg.unit||(seg.value>=1000?'km':'m');
-  // mode (time/distance) and unit (km/m) used to be two stacked toggle rows;
-  // collapsed into one 3-way row (time / km / m) since picking km or m
-  // already implies distance mode - no reason to spend a second row on it.
-  const modeRow=allowDist? `<div class="toggle" style="margin-bottom:7px">
-      <button class="${isTime?'on':''}" onclick="segModeUnit(${i},'${which}','time')">${t('timeMode')}</button>
-      <button class="${!isTime&&unit==='km'?'on':''}" onclick="segModeUnit(${i},'${which}','km')">${t('kmShort')}</button>
-      <button class="${!isTime&&unit==='m'?'on':''}" onclick="segModeUnit(${i},'${which}','m')">${t('meterShort')}</button>
+  // Time/Distance is the real choice (mode); km/m only matters once Distance
+  // is picked, so it rides on the same row as a narrower secondary toggle
+  // instead of a separate row - not merged into one flat 3-way control,
+  // since "which unit" isn't a peer of "time vs distance".
+  const modeRow=allowDist? `<div style="display:flex; gap:8px; margin-bottom:7px">
+      <div class="toggle" style="flex:1">
+        <button class="${isTime?'on':''}" onclick="segMode(${i},'${which}','time')">${t('timeMode')}</button>
+        <button class="${!isTime?'on':''}" onclick="segMode(${i},'${which}','dist')">${t('distMode')}</button>
+      </div>
+      ${!isTime? `<div class="toggle unittoggle">
+        <button class="${unit==='km'?'on':''}" onclick="segUnit(${i},'${which}','km')">${t('kmShort')}</button>
+        <button class="${unit==='m'?'on':''}" onclick="segUnit(${i},'${which}','m')">${t('meterShort')}</button>
+      </div>` : ''}
     </div>` : '';
   if(isTime){
     return modeRow+`
@@ -2567,16 +2574,22 @@ function toggleWarmCool(key){
 function addBlock(){ S.sheet.draft.blocks.push({kind:'repeat', reps:4,
   work:{mode:'time',value:120}, recovery:{mode:'time',value:90}}); render(); }
 function rmBlock(i){ S.sheet.draft.blocks.splice(i,1); render(); }
-/* one combined control for mode+unit (see segEditor) - picking 'km' or 'm'
-   sets both mode='dist' and that unit in a single call. */
-function segModeUnit(i,which,choice){ const b=S.sheet.draft.blocks[i];
+/* switching time<->distance always resets the value to a mode-appropriate
+   default - the old value is a different physical quantity (seconds vs
+   meters), so carrying the raw number across produced nonsense like "2:00"
+   turning into "120m" or a distance turning into an absurd duration.
+   Switching km<->m (segUnit) keeps the value as-is: it's stored in meters
+   either way, the unit only changes step size and display. */
+function segMode(i,which,mode){ const b=S.sheet.draft.blocks[i];
   const seg = which==='steady'? b : b[which];
-  if(choice==='time'){ seg.mode='time'; }
-  else {
-    if(seg.mode!=='dist' && seg.value<50) seg.value=which==='steady'?5000:400;
-    seg.mode='dist'; seg.unit=choice;
+  if(mode!==seg.mode){
+    seg.value = mode==='dist'? (which==='steady'?5000:400) : (which==='steady'?1200:60);
+    if(mode==='dist') seg.unit = seg.value>=1000?'km':'m';
   }
+  seg.mode=mode;
   render(); }
+function segUnit(i,which,unit){ const b=S.sheet.draft.blocks[i];
+  const seg = which==='steady'? b : b[which]; seg.unit=unit; render(); }
 function segVal(i,which,v){ const b=S.sheet.draft.blocks[i];
   const seg = which==='steady'? b : b[which];
   seg.value = seg.mode==='time'? parseTimeInput(v) : parseDistInput(v); }
