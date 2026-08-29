@@ -188,7 +188,11 @@ def build_steps(w: Workout):
 def build_strength_steps(w: Workout):
     """Strength: sets-of-reps circuit. Crossfit reuses the same shape but
     branches by wodFormat - EMOM maps fairly naturally to a Garmin repeat
-    group (N one-minute rounds, each a pass through the exercises). AMRAP has
+    group (N one-minute rounds, each a pass through the exercises); Tabata is
+    the same repeat-group/interval+recovery shape build_steps already uses
+    for running intervals, just fixed at 8 rounds of 20s work/10s rest per
+    exercise (one repeat group per exercise, done sequentially - the classic
+    protocol has no per-round rep target, so reps aren't used here). AMRAP has
     no Garmin equivalent (no "as many rounds as possible" step type), so it's
     approximated as a single time-capped interval step - the round breakdown
     lives in the app and the workout name, not something the watch enforces.
@@ -212,6 +216,15 @@ def build_strength_steps(w: Workout):
             child_order += 3
         steps.append(create_repeat_group(minutes, children, group_order))
         order = child_order
+    elif fmt == "tabata":
+        for ex in w.exercises:
+            group_order = order
+            children = [
+                create_interval_step(20.0, order + 1),
+                create_recovery_step(10.0, order + 2),
+            ]
+            steps.append(create_repeat_group(8, children, group_order))
+            order += 3
     else:
         for ex in w.exercises:
             steps.append(create_strength_set(
@@ -240,6 +253,8 @@ def estimate_secs(w: Workout) -> int:
             total += (w.wodCapMin or 20) * 60
         elif fmt == "emom":
             total += (w.wodMinutes or 12) * 60
+        elif fmt == "tabata":
+            total += len(w.exercises) * 8 * (20 + 10)  # 8 rounds of 20s work/10s rest, per exercise
         else:
             for ex in w.exercises:
                 total += ex.sets * (ex.reps * _SEC_PER_REP + ex.restSec)

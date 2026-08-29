@@ -279,13 +279,18 @@
   .type::before{content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--c);}
   .type.on{border-color:var(--work); background:var(--type-on-bg);}
   .type .tn{font-family:'Rubik'; font-weight:700; font-size:12.5px;}
-  .type.race{grid-column:1 / -1;}
+  /* race sits inline with the other kinds now (6 fit in one row since
+     recovery merged into volume), so it needs a visual cue beyond just its
+     own accent stripe (every kind button already gets one of those) to still
+     read as the odd one out - a race is an event, not an effort-kind like
+     the other five. An always-on tint does that even before it's selected. */
+  .type.race{background:rgba(245,184,69,.14); border-color:rgba(245,184,69,.45);}
   /* sport row: icon-only buttons, all 6 sports fit on one line */
   .types.sportrow{grid-template-columns:repeat(6,1fr); gap:5px;}
   .types.sportrow .type{padding:10px 2px 8px;}
   .type .icon{font-size:19px; line-height:1;}
-  /* kind row: 6 short text labels on one line (race still spans its own row below via .type.race) */
-  .types.kindrow{grid-template-columns:repeat(5,1fr); gap:4px;}
+  /* kind row: 6 short text labels (5 kinds + race) on one line */
+  .types.kindrow{grid-template-columns:repeat(6,1fr); gap:4px;}
   .types.kindrow .type{padding:8px 1px 6px;}
   .types.kindrow .type .tn{font-size:10.5px; line-height:1.15;}
 
@@ -550,6 +555,8 @@ const T={
   wodMinLabel:{he:'משך (דק׳)', en:'Duration (min)'},
   wodRoundLabel:{he:'סבב', en:'round'},
   wodPerMinuteLabel:{he:'כל דקה', en:'every minute'},
+  wodTabata:{he:'טבטה', en:'Tabata'},
+  wodTabataProtocol:{he:'20/10 × 8', en:'20/10 × 8'},
   setsLabel:{he:'סטים', en:'Sets'},
   repsLabel:{he:'חזרות', en:'Reps'},
   restLabel:{he:'מנוחה בין סטים (שנ׳)', en:'Rest between sets (sec)'},
@@ -865,12 +872,14 @@ function generateCrossfitRound(n){
   return picks.map(key=>({category:key, sets:1, reps:randInt(8,15), weightKg:null, restSec:0}));
 }
 /* picks a random WOD format each time "generate" is used, not just a random
-   movement list - variety in structure (For Time / AMRAP / EMOM), not just
-   in which exercises show up, per the owner's ask for "interesting and varied". */
+   movement list - variety in structure (For Time / AMRAP / EMOM / Tabata),
+   not just in which exercises show up, per the owner's ask for "interesting
+   and varied". */
 function generateCrossfitWod(){
-  const format=['forTime','amrap','emom'][randInt(0,2)];
+  const format=['forTime','amrap','emom','tabata'][randInt(0,3)];
   if(format==='amrap') return {wodFormat:'amrap', wodCapMin:[12,15,20,25][randInt(0,3)], wodMinutes:null, exercises:generateCrossfitRound(randInt(3,5))};
   if(format==='emom') return {wodFormat:'emom', wodCapMin:null, wodMinutes:[8,10,12,16][randInt(0,3)], exercises:generateCrossfitRound(randInt(1,3))};
+  if(format==='tabata') return {wodFormat:'tabata', wodCapMin:null, wodMinutes:null, exercises:generateCrossfitRound(randInt(2,4))};
   return {wodFormat:'forTime', wodCapMin:null, wodMinutes:null, exercises:generateCrossfitExercises()};
 }
 function typeLabel(k){ return S.lang==='he'? TYPES[k].name : TYPES[k].en; }
@@ -1551,14 +1560,16 @@ function renderBlockView(b, idx, total, sport){
 }
 function renderExerciseSteps(w){
   const col=w.sport==='crossfit'? '--crossfit' : '--strength';
-  const isRound=w.wodFormat && w.wodFormat!=='forTime';
+  const isTabata=w.wodFormat==='tabata';
+  const isRound=w.wodFormat && w.wodFormat!=='forTime' && !isTabata;
   const header=w.wodFormat==='amrap'? `<div class="minilbl" style="margin-bottom:4px">AMRAP ${w.wodCapMin||20} ${t('min')}</div>`
-    : w.wodFormat==='emom'? `<div class="minilbl" style="margin-bottom:4px">EMOM ${w.wodMinutes||12} ${t('min')}</div>` : '';
+    : w.wodFormat==='emom'? `<div class="minilbl" style="margin-bottom:4px">EMOM ${w.wodMinutes||12} ${t('min')}</div>`
+    : isTabata? `<div class="minilbl" style="margin-bottom:4px">${t('wodTabata')} · ${t('wodTabataProtocol')}</div>` : '';
   const rows=(w.exercises||[]).map(ex=>{
     const weightStr=ex.weightKg? ' · '+ex.weightKg+' '+t('kgShort') : '';
     return `<div class="step"><span class="pip" style="background:var(${col})"></span>
       <span class="lbl">${exerciseCategoryLabel(ex.category)}</span>
-      <span class="val">${isRound? ex.reps : ex.sets+'×'+ex.reps}${weightStr}</span></div>`;
+      <span class="val">${isTabata? t('wodTabataProtocol') : isRound? ex.reps : ex.sets+'×'+ex.reps}${weightStr}</span></div>`;
   }).join('');
   return header+rows;
 }
@@ -2028,23 +2039,28 @@ function crossfitSection(d){
   // AMRAP/EMOM: a "round" or "minute" of movements, done repeatedly until the
   // cap/duration - sets and rest between sets don't apply (the round/minute
   // itself is the repeating unit), so only reps are shown/edited for those.
-  const isRound=fmt!=='forTime';
+  // Tabata is even more fixed - 8 rounds of 20s work/10s rest per movement is
+  // the protocol, not something to configure, so it doesn't even show reps.
+  const isTabata=fmt==='tabata';
+  const isRound=fmt!=='forTime' && !isTabata;
 
   const formatRow=`<div class="toggle" style="margin-bottom:11px">
       <button class="${fmt==='forTime'?'on':''}" onclick="setCrossfitFormat('forTime')">${t('wodForTime')}</button>
       <button class="${fmt==='amrap'?'on':''}" onclick="setCrossfitFormat('amrap')">AMRAP</button>
       <button class="${fmt==='emom'?'on':''}" onclick="setCrossfitFormat('emom')">EMOM</button>
+      <button class="${isTabata?'on':''}" onclick="setCrossfitFormat('tabata')">${t('wodTabata')}</button>
     </div>`;
   const capRow=fmt==='amrap'? `<div class="minilbl" style="margin-bottom:4px">${t('wodCapLabel')}</div>${stepperHTML('wodCap', d.wodCapMin||20)}`
     : fmt==='emom'? `<div class="minilbl" style="margin-bottom:4px">${t('wodMinLabel')}</div>${stepperHTML('wodMin', d.wodMinutes||12)}` : '';
   const summaryHeader=fmt==='amrap'? `<div class="minilbl" style="margin:14px 0 4px">AMRAP ${d.wodCapMin||20} ${t('min')} · ${t('wodRoundLabel')}</div>`
     : fmt==='emom'? `<div class="minilbl" style="margin:14px 0 4px">EMOM ${d.wodMinutes||12} ${t('min')} · ${t('wodPerMinuteLabel')}</div>`
+    : isTabata? `<div class="minilbl" style="margin:14px 0 4px">${t('wodTabata')} · ${t('wodTabataProtocol')}</div>`
     : `<div class="minilbl" style="margin:14px 0 8px">${t('exercisesLabel')}</div>`;
 
   const summary=`<div class="steps">${d.exercises.map(ex=>`
     <div class="step"><span class="pip" style="background:var(--crossfit)"></span>
       <span class="lbl">${exerciseCategoryLabel(ex.category)}</span>
-      <span class="val">${isRound? ex.reps : ex.sets+'×'+ex.reps}${ex.weightKg? ' · '+ex.weightKg+' '+t('kgShort') : ''}</span></div>`).join('')}</div>`;
+      <span class="val">${isTabata? t('wodTabataProtocol') : isRound? ex.reps : ex.sets+'×'+ex.reps}${ex.weightKg? ' · '+ex.weightKg+' '+t('kgShort') : ''}</span></div>`).join('')}</div>`;
   const rows=d.exercises.map((ex,i)=>`
     <div class="blk">
       <div class="bh"><span class="bt">${exerciseCategoryLabel(ex.category)}</span>
@@ -2052,7 +2068,7 @@ function crossfitSection(d){
       <div class="exchips">
         ${CROSSFIT_CATEGORIES.map(c=>`<button class="${ex.category===c.key?'on':''}" onclick="exerciseCategory(${i},'${c.key}')">${exerciseCategoryLabel(c.key)}</button>`).join('')}
       </div>
-      ${isRound? `
+      ${isTabata? '' : isRound? `
       <div class="field" style="margin-top:11px; margin-bottom:0">
         <div class="minilbl">${t('repsLabel')}</div>${stepperHTML('exReps'+i, ex.reps)}
       </div>` : `
@@ -2087,6 +2103,7 @@ function setCrossfitFormat(fmt){ const d=S.sheet.draft; d.wodFormat=fmt;
   if(fmt==='forTime' && (!d.exercises.length || d.exercises[0].sets===1)) d.exercises=generateCrossfitExercises();
   if(fmt==='amrap'){ if(!d.wodCapMin) d.wodCapMin=20; if(!d.exercises.length || d.exercises[0].sets!==1) d.exercises=generateCrossfitRound(4); }
   if(fmt==='emom'){ if(!d.wodMinutes) d.wodMinutes=12; if(!d.exercises.length || d.exercises[0].sets!==1) d.exercises=generateCrossfitRound(2); }
+  if(fmt==='tabata'){ if(!d.exercises.length || d.exercises[0].sets!==1) d.exercises=generateCrossfitRound(3); }
   render(); scrollSheetToTop(); }
 function toggleCrossfitEdit(){ S.sheet.crossfitEditMode=!S.sheet.crossfitEditMode; render(); }
 function addExercise(){ S.sheet.draft.exercises.push({category:'SQUAT', sets:3, reps:10, weightKg:null, restSec:90}); render(); }
