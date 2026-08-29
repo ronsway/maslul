@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.68 - 2026-08-29 10:35 - race inline in kind row add tabata format
+
 ## v1.0.67 - 2026-08-29 10:25 - pin sheet top edge only height varies
 
 ## v1.0.66 - 2026-08-29 10:19 - anchor sheet to top on sport kind format switch
