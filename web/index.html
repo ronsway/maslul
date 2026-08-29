@@ -1034,6 +1034,19 @@ function fmtDistInput(m){
   if(m>=1000) return (Math.round(m/100)/10)+'km';
   return String(m);
 }
+/* unit-aware versions for segEditor, which has an explicit km/m toggle -
+   the displayed/typed number must reflect whichever unit is currently
+   selected (not just auto-detected from magnitude), so switching the toggle
+   visibly converts the number instead of leaving it looking unchanged. An
+   explicit km/m suffix in the typed text still overrides the active unit. */
+function fmtDistInputUnit(m,unit){ return unit==='km'? String(Math.round(m/100)/10) : String(Math.round(m)); }
+function parseDistInputUnit(v,unit){
+  v=(v||'').trim().toLowerCase().replace(',','.');
+  if(v.endsWith('km')||v.endsWith('k')) return Math.max(0, Math.round((parseFloat(v)||0)*1000));
+  if(v.endsWith('m')) return Math.max(0, Math.round(parseFloat(v)||0));
+  const n=parseFloat(v)||0;
+  return Math.max(0, Math.round(unit==='km'? n*1000 : n));
+}
 /* a bare number here means minutes (the field is "target time in minutes"),
    unlike parseTimeInput's bare-number-means-seconds used for short segments */
 function parseTargetTime(v){
@@ -2034,7 +2047,7 @@ function segEditor(seg,i,which,sport){
     ${chips}
     <div class="stepper">
       <button onclick="segDistStep(${i},'${which}',-1)">−</button>
-      <input class="v mono" dir="ltr" value="${fmtDistInput(seg.value)}" placeholder="${t('distHint')}" onclick="this.select()"
+      <input class="v mono" dir="ltr" value="${fmtDistInputUnit(seg.value,unit)}" placeholder="${t('distHint')}" onclick="this.select()"
         oninput="segVal(${i},'${which}',this.value)" onkeydown="commitOnEnter(event)">
       <button onclick="segDistStep(${i},'${which}',1)">+</button>
     </div>`;
@@ -2592,7 +2605,7 @@ function segUnit(i,which,unit){ const b=S.sheet.draft.blocks[i];
   const seg = which==='steady'? b : b[which]; seg.unit=unit; render(); }
 function segVal(i,which,v){ const b=S.sheet.draft.blocks[i];
   const seg = which==='steady'? b : b[which];
-  seg.value = seg.mode==='time'? parseTimeInput(v) : parseDistInput(v); }
+  seg.value = seg.mode==='time'? parseTimeInput(v) : parseDistInputUnit(v, seg.unit||(seg.value>=1000?'km':'m')); }
 function segDistPick(i,which,km){ const b=S.sheet.draft.blocks[i];
   const seg = which==='steady'? b : b[which]; seg.value=Math.round(km*1000); seg.unit='km'; render(); }
 function segDistStep(i,which,dir){ const b=S.sheet.draft.blocks[i];
