@@ -27,6 +27,9 @@
     --yoga:#E893BE;   /* yoga / mobility */
     --crossfit:#C4D600; /* crossfit */
     --elliptical:#22D3C5; /* elliptical - was sharing --easy with rowing, now distinct */
+    --tempo:#E85D75;   /* tempo - was sharing --work with intervals/hills/fartlek */
+    --hills:#C97B4A;   /* hills */
+    --fartlek:#B565D8; /* fartlek */
     --shadow:0 8px 30px rgba(0,0,0,.45);
     --del-border:#3a2422;
     --res-ok-bg:#12251f; --res-ok-border:#1e3a30; --res-ok-text:#8fe6cf;
@@ -273,6 +276,10 @@
   .types.sportrow{grid-template-columns:repeat(6,1fr); gap:5px;}
   .types.sportrow .type{padding:10px 2px 8px;}
   .type .icon{font-size:19px; line-height:1;}
+  /* kind row: 6 short text labels on one line (race still spans its own row below via .type.race) */
+  .types.kindrow{grid-template-columns:repeat(6,1fr); gap:4px;}
+  .types.kindrow .type{padding:8px 1px 6px;}
+  .types.kindrow .type .tn{font-size:10.5px; line-height:1.15;}
 
   .field{margin-bottom:15px;}
   .field label{display:block; font-size:13px; color:var(--muted); font-weight:600; margin-bottom:7px;}
@@ -754,9 +761,9 @@ const CARDIO_KINDS=['intervals','tempo','hills','fartlek','volume','recovery'];
 
 const TYPES={
   intervals:{name:'אינטרוולים', en:'Intervals', desc:'מקטעי מאמץ מהיר עם התאוששות', descEn:'Fast effort segments with recovery', color:'--work'},
-  tempo:{name:'טמפו', en:'Tempo', desc:'מאמץ רציף בקצב סף נוח-קשה', descEn:'Sustained effort at threshold pace', color:'--work'},
-  hills:{name:'עליות', en:'Hills', desc:'חזרות מאמץ גבוה עם התאוששות קלה', descEn:'High-effort repeats with easy recovery', color:'--work'},
-  fartlek:{name:'פארטלק', en:'Fartlek', desc:'משחקי קצב, האצות משתנות', descEn:'Speed play, varying surges', color:'--work'},
+  tempo:{name:'טמפו', en:'Tempo', desc:'מאמץ רציף בקצב סף נוח-קשה', descEn:'Sustained effort at threshold pace', color:'--tempo'},
+  hills:{name:'עליות', en:'Hills', desc:'חזרות מאמץ גבוה עם התאוששות קלה', descEn:'High-effort repeats with easy recovery', color:'--hills'},
+  fartlek:{name:'פארטלק', en:'Fartlek', desc:'משחקי קצב, האצות משתנות', descEn:'Speed play, varying surges', color:'--fartlek'},
   volume:{name:'נפח', en:'Volume', desc:'מאמץ רציף בקצב קל', descEn:'Continuous effort at an easy pace', color:'--easy'},
   recovery:{name:'התאוששות', en:'Recovery', desc:'מאמץ קליל וקצר', descEn:'Short, easy recovery effort', color:'--rec'},
   race:{name:'תחרות', en:'Race', desc:'יום המרוץ עצמו', descEn:'The race day itself', color:'--warm'},
@@ -878,7 +885,7 @@ function defaultWorkout(sport,type,date){
     base.raceDistM=5000; base.raceTargetSec=null; base.raceSplit='negative'; // warmup/cooldown are separate entries, see raceDistSection()
     base.blocks=[{kind:'steady', mode:'dist', value:5000}]; }
   if(sport==='yoga'){ base.warmupSec=0; base.cooldownSec=0;
-    base.blocks=[{kind:'steady', mode:'time', value:1800}]; }
+    base.blocks=[{kind:'steady', mode:'time', value:3600}]; }
   if(sport==='strength'){ base.warmupSec=300; base.cooldownSec=0; base.blocks=[];
     base.exercises=[{category:'SQUAT', sets:3, reps:10, weightKg:null, restSec:90}]; }
   if(sport==='crossfit'){ // always warms up and cools down - not optional like strength's toggle
@@ -1800,7 +1807,7 @@ function editorSheet(){
     </div>
     ${isCardio? `
     <div class="minilbl" style="margin:14px 0 8px">${t('typesSectionKind')}</div>
-    <div class="types">
+    <div class="types kindrow">
       ${CARDIO_KINDS.map(k=>`<button class="type ${d.type===k?'on':''}" style="--c:var(${TYPES[k].color})" onclick="setKind('${k}')" title="${typeDesc(k)}">
         <div class="tn">${typeLabel(k)}</div></button>`).join('')}
       ${d.sport==='running'? `<button class="type race ${isRace?'on':''}" style="--c:var(${TYPES.race.color})" onclick="setKind('race')" title="${typeDesc('race')}">
@@ -1809,6 +1816,8 @@ function editorSheet(){
 
     <div class="field"><label>${t('workoutName')}</label>
       <input value="${d.name}" oninput="d_name(this.value)"></div>
+
+    ${timeStepChips()}
 
     ${isRace? raceDistSection(d) : isStrength? strengthSection(d) : isCrossfit? crossfitSection(d) : `
     <div class="field">
@@ -1831,6 +1840,19 @@ function editorSheet(){
     <button class="ghost" onclick="closeSheet()">${t('cancel')}</button>
   </div></div>`;
 }
+/* shared +/- step size (in minutes) for every minute-granularity time field
+   in this editor - warmup/cooldown, race warmup/cooldown, and a steady
+   block's duration (bump() and segTimeStep() both read it). One picker,
+   shown once, instead of duplicating it next to every field - short interval
+   work/recovery segments (seconds-scale) intentionally don't use it, they
+   stay on their own fine fixed step. */
+function timeStepChips(){
+  const cur=S.sheet.timeStepMin||1;
+  return `<div class="distchips">
+    ${[1,5,10,30].map(m=>`<button class="${cur===m?'on':''}" onclick="setTimeStepMin(${m})">${m}'</button>`).join('')}
+  </div>`;
+}
+function setTimeStepMin(m){ S.sheet.timeStepMin=m; render(); }
 /* the middle of a stepper is itself a live-typable input (not a read-only
    display), so tapping +/- and typing a number both work on the same field
    instead of duplicating the value into a separate exact-input below. Like
@@ -2543,11 +2565,11 @@ function setSport(s){ const cur=S.sheet.draft; const date=weekDates(S.offset)[S.
 function setKind(k){ const cur=S.sheet.draft; const date=weekDates(S.offset)[S.sel];
   const nw=defaultWorkout(cur.sport, k, date); nw.id=cur.id; S.sheet.draft=nw; render(); }
 function d_name(v){ S.sheet.draft.name=v; }
-function bump(key,dir){ const d=S.sheet.draft;
-  if(key==='warm') d.warmupSec=Math.max(0,d.warmupSec+dir*60);
-  else if(key==='cool') d.cooldownSec=Math.max(0,d.cooldownSec+dir*60);
-  else if(key==='raceWarm') S.sheet.raceWarmup.min=Math.max(5,S.sheet.raceWarmup.min+dir);
-  else if(key==='raceCool') S.sheet.raceCooldown.min=Math.max(5,S.sheet.raceCooldown.min+dir);
+function bump(key,dir){ const d=S.sheet.draft; const tStep=S.sheet.timeStepMin||1;
+  if(key==='warm') d.warmupSec=Math.max(0,d.warmupSec+dir*60*tStep);
+  else if(key==='cool') d.cooldownSec=Math.max(0,d.cooldownSec+dir*60*tStep);
+  else if(key==='raceWarm') S.sheet.raceWarmup.min=Math.max(5,S.sheet.raceWarmup.min+dir*tStep);
+  else if(key==='raceCool') S.sheet.raceCooldown.min=Math.max(5,S.sheet.raceCooldown.min+dir*tStep);
   else if(key.startsWith('reps')){ const i=+key.slice(4); d.blocks[i].reps=Math.max(1,d.blocks[i].reps+dir); }
   else if(key.startsWith('exSets')){ const i=+key.slice(6); d.exercises[i].sets=Math.max(1,d.exercises[i].sets+dir); }
   else if(key.startsWith('exReps')){ const i=+key.slice(6); d.exercises[i].reps=Math.max(1,d.exercises[i].reps+dir); }
@@ -2614,7 +2636,10 @@ function segDistStep(i,which,dir){ const b=S.sheet.draft.blocks[i];
   seg.value=Math.max(step, seg.value+dir*step); render(); }
 function segTimeStep(i,which,dir){ const b=S.sheet.draft.blocks[i];
   const seg = which==='steady'? b : b[which];
-  const step=which==='steady'?60:15;
+  // steady = a long continuous duration (run/yoga/etc), shares the adjustable
+  // minute step; work/recovery = a short interval effort (seconds-scale),
+  // stays on its own fine-grained fixed step regardless of that setting.
+  const step=which==='steady'? 60*(S.sheet.timeStepMin||1) : 15;
   seg.value=Math.max(step, seg.value+dir*step); render(); }
 function raceAuxWorkout(kind, minutes){ // kind: 'warm' or 'cool' - a plain independent easy-effort entry
   // raceAux marks it for a simplified one-line card (see renderCard) instead of
