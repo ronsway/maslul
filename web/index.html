@@ -857,6 +857,10 @@ function steadyLabel(sport){
 }
 /* seconds-per-meter estimates, for the visual profile bar only */
 const PACE={work:0.27, recovery:0.39, easy:0.36};
+/* ~5 min/km (a generic easy-effort pace), used only to convert a segment's
+   value when switching time<->distance mode, so "20:00" becomes "4km" (not
+   an arbitrary reset) and vice versa. */
+const TIME_DIST_PACE=0.3;
 
 const WEEKDAY_EN=['SUN','MON','TUE','WED','THU','FRI','SAT'];
 /* running has no sport prefix (it's the implicit default, matches pre-multi-sport
@@ -1802,14 +1806,6 @@ function editorSheet(){
   const isStrength=d.sport==='strength';
   const isCrossfit=d.sport==='crossfit';
   const isCardio=CARDIO_SPORTS.includes(d.sport);
-  // the step picker only matters where there's an active minute-scale time
-  // field to apply it to - not for a purely distance-based view (a race, or
-  // a steady segment currently set to distance mode with no warmup/cooldown)
-  const rw=S.sheet.raceWarmup, rc=S.sheet.raceCooldown;
-  const showTimeStep = isRace? (S.sheet.editIndex==null && ((rw&&rw.on)||(rc&&rc.on)))
-    : isStrength? d.warmupSec>0
-    : isCrossfit? true
-    : (d.warmupSec>0 || d.cooldownSec>0 || (d.blocks[0] && d.blocks[0].mode==='time'));
   return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet${sheetEntering()}">
     <div class="grab"></div>
     <h2 class="disp">${S.sheet.editIndex==null?t('newWorkout'):t('editWorkout')}</h2>
@@ -1830,13 +1826,11 @@ function editorSheet(){
     <div class="field"><label>${t('workoutName')}</label>
       <input value="${d.name}" oninput="d_name(this.value)"></div>
 
-    ${showTimeStep? timeStepChips() : ''}
-
     ${isRace? raceDistSection(d) : isStrength? strengthSection(d) : isCrossfit? crossfitSection(d) : `
     <div class="field">
       <div class="fieldhead"><label>${t('warmupMin')}</label>
         <div class="swtch ${d.warmupSec>0?'on':''}" onclick="toggleWarmCool('warm')"><span class="knob"></span></div></div>
-      ${d.warmupSec>0? stepperHTML('warm', Math.round(d.warmupSec/60)) : ''}
+      ${d.warmupSec>0? stepperHTML('warm', Math.round(d.warmupSec/60))+timeStepChips() : ''}
     </div>
 
     <div class="minilbl" style="margin:4px 0 8px">${t('mainSegments')}</div>
@@ -1846,19 +1840,19 @@ function editorSheet(){
     <div class="field">
       <div class="fieldhead"><label>${t('cooldownMin')}</label>
         <div class="swtch ${d.cooldownSec>0?'on':''}" onclick="toggleWarmCool('cool')"><span class="knob"></span></div></div>
-      ${d.cooldownSec>0? stepperHTML('cool', Math.round(d.cooldownSec/60)) : ''}
+      ${d.cooldownSec>0? stepperHTML('cool', Math.round(d.cooldownSec/60))+timeStepChips() : ''}
     </div>`}
 
     <button class="primary disp" onclick="saveWorkout()">${t('saveWorkout')}</button>
     <button class="ghost" onclick="closeSheet()">${t('cancel')}</button>
   </div></div>`;
 }
-/* shared +/- step size (in minutes) for every minute-granularity time field
-   in this editor - warmup/cooldown, race warmup/cooldown, and a steady
-   block's duration (bump() and segTimeStep() both read it). One picker,
-   shown once, instead of duplicating it next to every field - short interval
-   work/recovery segments (seconds-scale) intentionally don't use it, they
-   stay on their own fine fixed step. */
+/* +/- step size (in minutes) for time fields - one shared value (bump() and
+   segTimeStep() both read S.sheet.timeStepMin), but the picker itself is
+   rendered right next to each individual time stepper (warmup, cooldown,
+   race warmup/cooldown, a segment's time value) rather than once globally -
+   it controls that specific control, not the workout as a whole, so it
+   belongs beside it and only appears where a time field is actually shown. */
 function timeStepChips(){
   const cur=S.sheet.timeStepMin||1;
   return `<div class="distchips">
@@ -1938,12 +1932,12 @@ function raceDistSection(d){
     <div class="field" style="margin-bottom:11px">
       <div class="fieldhead"><label>${t('raceIncludeWarmup')}</label>
         <div class="swtch ${rw.on?'on':''}" onclick="toggleRaceWarmup()"><span class="knob"></span></div></div>
-      ${rw.on? stepperHTML('raceWarm', rw.min) : ''}
+      ${rw.on? stepperHTML('raceWarm', rw.min)+timeStepChips() : ''}
     </div>
     <div class="field">
       <div class="fieldhead"><label>${t('raceIncludeCooldown')}</label>
         <div class="swtch ${rc.on?'on':''}" onclick="toggleRaceCooldown()"><span class="knob"></span></div></div>
-      ${rc.on? stepperHTML('raceCool', rc.min) : ''}
+      ${rc.on? stepperHTML('raceCool', rc.min)+(rw.on?'':timeStepChips()) : ''}
     </div>` : ''}`;
 }
 function regenRaceBlocks(d){
@@ -1983,7 +1977,7 @@ function strengthSection(d){
     <div class="field" style="margin-top:15px">
       <div class="fieldhead"><label>${t('warmupMin')}</label>
         <div class="swtch ${d.warmupSec>0?'on':''}" onclick="toggleWarmCool('warm')"><span class="knob"></span></div></div>
-      ${d.warmupSec>0? stepperHTML('warm', Math.round(d.warmupSec/60)) : ''}
+      ${d.warmupSec>0? stepperHTML('warm', Math.round(d.warmupSec/60))+timeStepChips() : ''}
     </div>`;
 }
 /* crossfit reuses strength's exercises shape (sets/reps/weight/rest) but from a
@@ -2028,7 +2022,8 @@ function crossfitSection(d){
     <div class="minilbl" style="margin-top:15px">${t('warmupMin')}</div>
     ${stepperHTML('warm', Math.round(d.warmupSec/60))}
     <div class="minilbl" style="margin-top:11px">${t('cooldownMin')}</div>
-    ${stepperHTML('cool', Math.round(d.cooldownSec/60))}`;
+    ${stepperHTML('cool', Math.round(d.cooldownSec/60))}
+    ${timeStepChips()}`;
 }
 function regenerateCrossfit(){ S.sheet.draft.exercises=generateCrossfitExercises(); render(); }
 function toggleCrossfitEdit(){ S.sheet.crossfitEditMode=!S.sheet.crossfitEditMode; render(); }
@@ -2072,7 +2067,7 @@ function segEditor(seg,i,which,sport){
         <input class="v mono" dir="ltr" value="${fmtTimeInput(seg.value)}" placeholder="${t('timeHint')}" onclick="this.select()"
           oninput="segVal(${i},'${which}',this.value)" onkeydown="commitOnEnter(event)">
         <button onclick="segTimeStep(${i},'${which}',1)">+</button>
-      </div>`;
+      </div>`+timeStepChips();
   }
   const distChipsKm=sport==='running'? RUN_DIST_CHIPS_KM : CARDIO_DIST_CHIPS_KM;
   const chips=which==='steady'? `<div class="distchips">
@@ -2622,16 +2617,18 @@ function toggleWarmCool(key){
 function addBlock(){ S.sheet.draft.blocks.push({kind:'repeat', reps:4,
   work:{mode:'time',value:120}, recovery:{mode:'time',value:90}}); render(); }
 function rmBlock(i){ S.sheet.draft.blocks.splice(i,1); render(); }
-/* switching time<->distance always resets the value to a mode-appropriate
-   default - the old value is a different physical quantity (seconds vs
-   meters), so carrying the raw number across produced nonsense like "2:00"
-   turning into "120m" or a distance turning into an absurd duration.
+/* switching time<->distance converts the value at a generic ~5min/km pace
+   (TIME_DIST_PACE) instead of resetting to an arbitrary fixed default - the
+   old value is a different physical quantity (seconds vs meters), so
+   carrying the raw number across as-is produced nonsense like "2:00"
+   becoming "120m", but a flat reset threw away what the person had actually
+   set. "20:00" -> ~4km, "5km" -> ~25:00 - a real (if approximate) estimate.
    Switching km<->m (segUnit) keeps the value as-is: it's stored in meters
    either way, the unit only changes step size and display. */
 function segMode(i,which,mode){ const b=S.sheet.draft.blocks[i];
   const seg = which==='steady'? b : b[which];
   if(mode!==seg.mode){
-    seg.value = mode==='dist'? (which==='steady'?5000:400) : (which==='steady'?1200:60);
+    seg.value = mode==='dist'? Math.round(seg.value/TIME_DIST_PACE) : Math.round(seg.value*TIME_DIST_PACE);
     if(mode==='dist') seg.unit = seg.value>=1000?'km':'m';
   }
   seg.mode=mode;
@@ -2649,10 +2646,9 @@ function segDistStep(i,which,dir){ const b=S.sheet.draft.blocks[i];
   seg.value=Math.max(step, seg.value+dir*step); render(); }
 function segTimeStep(i,which,dir){ const b=S.sheet.draft.blocks[i];
   const seg = which==='steady'? b : b[which];
-  // steady = a long continuous duration (run/yoga/etc), shares the adjustable
-  // minute step; work/recovery = a short interval effort (seconds-scale),
-  // stays on its own fine-grained fixed step regardless of that setting.
-  const step=which==='steady'? 60*(S.sheet.timeStepMin||1) : 15;
+  // shared adjustable minute step, same as warmup/cooldown - applies to every
+  // time selector (steady duration and interval work/recovery alike).
+  const step=60*(S.sheet.timeStepMin||1);
   seg.value=Math.max(step, seg.value+dir*step); render(); }
 function raceAuxWorkout(kind, minutes){ // kind: 'warm' or 'cool' - a plain independent easy-effort entry
   // raceAux marks it for a simplified one-line card (see renderCard) instead of
