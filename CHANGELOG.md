@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.72 - 2026-08-29 15:38 - add email plus password sign in alongside Google
+
 ## v1.0.71 - 2026-08-29 15:02 - fix non-running workouts failing to upload to Garmin
 
 ## v1.0.70 - 2026-08-29 14:56 - per-user Garmin connections replace global GARTH_TOKEN
