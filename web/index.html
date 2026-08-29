@@ -2079,12 +2079,12 @@ function crossfitSection(d){
     ${stepperHTML('cool', Math.round(d.cooldownSec/60))}
     ${timeStepChips()}`;
 }
-function regenerateCrossfit(){ Object.assign(S.sheet.draft, generateCrossfitWod()); render(); }
+function regenerateCrossfit(){ Object.assign(S.sheet.draft, generateCrossfitWod()); render(); scrollSheetToTop(); }
 function setCrossfitFormat(fmt){ const d=S.sheet.draft; d.wodFormat=fmt;
   if(fmt==='forTime' && (!d.exercises.length || d.exercises[0].sets===1)) d.exercises=generateCrossfitExercises();
   if(fmt==='amrap'){ if(!d.wodCapMin) d.wodCapMin=20; if(!d.exercises.length || d.exercises[0].sets!==1) d.exercises=generateCrossfitRound(4); }
   if(fmt==='emom'){ if(!d.wodMinutes) d.wodMinutes=12; if(!d.exercises.length || d.exercises[0].sets!==1) d.exercises=generateCrossfitRound(2); }
-  render(); }
+  render(); scrollSheetToTop(); }
 function toggleCrossfitEdit(){ S.sheet.crossfitEditMode=!S.sheet.crossfitEditMode; render(); }
 function addExercise(){ S.sheet.draft.exercises.push({category:'SQUAT', sets:3, reps:10, weightKg:null, restSec:90}); render(); }
 function rmExercise(i){ S.sheet.draft.exercises.splice(i,1); render(); }
@@ -2621,6 +2621,15 @@ function openEditor(idx){
   else S.sheet={mode:'edit', editIndex:idx, draft:JSON.parse(JSON.stringify(dayWorkouts(date)[idx]))};
   render();
 }
+/* render() preserves the sheet's exact scrollTop by default (good for an
+   in-place tweak like a stepper click), but switching sport/kind reshapes the
+   whole form into a structurally different, often shorter one - reapplying
+   the old pixel offset can land past the new content's end, clamping the
+   view down near the Save button ("jumps down" on e.g. intervals -> tempo,
+   since intervals' repeat-block editor is taller than tempo's single
+   segment). These are a fresh start, not a tweak, so force back to the top
+   instead of trying to preserve position across a different-shaped form. */
+function scrollSheetToTop(){ const el=document.querySelector('.sheet'); if(el) el.scrollTop=0; }
 /* switching sport keeps the current kind when it still makes sense (e.g. running
    intervals -> rowing intervals); otherwise falls back to a sensible default
    (volume for cardio sports, or the sport itself for strength/yoga, which have
@@ -2628,9 +2637,9 @@ function openEditor(idx){
 function setSport(s){ const cur=S.sheet.draft; const date=weekDates(S.offset)[S.sel];
   const cardio=CARDIO_SPORTS.includes(s);
   const kind=cardio? (CARDIO_KINDS.includes(cur.type)? cur.type : 'volume') : s;
-  const nw=defaultWorkout(s, kind, date); nw.id=cur.id; S.sheet.draft=nw; render(); }
+  const nw=defaultWorkout(s, kind, date); nw.id=cur.id; S.sheet.draft=nw; render(); scrollSheetToTop(); }
 function setKind(k){ const cur=S.sheet.draft; const date=weekDates(S.offset)[S.sel];
-  const nw=defaultWorkout(cur.sport, k, date); nw.id=cur.id; S.sheet.draft=nw; render(); }
+  const nw=defaultWorkout(cur.sport, k, date); nw.id=cur.id; S.sheet.draft=nw; render(); scrollSheetToTop(); }
 function d_name(v){ S.sheet.draft.name=v; }
 function bump(key,dir){ const d=S.sheet.draft; const tStep=S.sheet.timeStepMin||1;
   if(key==='warm') d.warmupSec=Math.max(0,d.warmupSec+dir*60*tStep);
