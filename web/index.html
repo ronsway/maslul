@@ -220,9 +220,16 @@
 
   /* ---- sheet / modal ---- */
   .scrim{position:fixed; inset:0; background:rgba(6,8,11,.66); -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px);
-    display:none; align-items:flex-end; justify-content:center; z-index:40;}
+    display:none; align-items:flex-start; justify-content:center; z-index:40;}
   .scrim.on{display:flex;}
-  .sheet{width:100%; max-width:520px; min-height:82vh; max-height:92vh; overflow-y:auto; background:var(--ink);
+  /* top-anchored, not bottom-anchored: a fixed margin-top so the sheet's top
+     edge never moves, and only its height (via content, up to max-height)
+     changes between forms. Previously bottom-anchored with min/max-height
+     (82vh-92vh) both varying - switching to a shorter form (e.g. intervals's
+     tall repeat-block editor -> tempo's single segment) shrank the sheet
+     from the bottom-anchored side, so the visible top edge shifted down each
+     time - jarring on every sport/kind switch, not just a scroll issue. */
+  .sheet{width:100%; max-width:520px; margin-top:8vh; max-height:92vh; overflow-y:auto; background:var(--ink);
     border-radius:22px 22px 0 0; border-top:1px solid var(--line); padding:8px 18px calc(24px + env(safe-area-inset-bottom));
     box-sizing:border-box;}
   /* animation only on first paint (.entering, set by sheetEntering()) - render()
@@ -231,11 +238,7 @@
      the slide-up on every single interaction, not just when the sheet opens. */
   .sheet.entering{animation:up .22s ease;}
   @supports (height: 100dvh){
-    .sheet{min-height:82dvh; max-height:92dvh;}
-  }
-  .sheet.compact{min-height:0;}
-  @supports (height: 100dvh){
-    .sheet.compact{min-height:0;}
+    .sheet{margin-top:8dvh; max-height:92dvh;}
   }
   .scrim.center{align-items:center;}
   .sheet.dialog{width:calc(100% - 32px); max-width:380px; border-radius:22px;
