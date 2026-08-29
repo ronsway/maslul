@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.61 - 2026-08-29 09:02 - yoga 60min default time step picker distinct kind colors
+
 ## v1.0.60 - 2026-08-29 08:56 - fix unit conversion and mode toggle update docs
 
 ## v1.0.59 - 2026-08-28 15:22 - enter to format compact time distance row
