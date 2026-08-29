@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.66 - 2026-08-29 10:19 - anchor sheet to top on sport kind format switch
+
 ## v1.0.65 - 2026-08-29 10:10 - merge volume recovery crossfit wod formats
 
 ## v1.0.64 - 2026-08-29 09:57 - fix rtl swipe direction
