@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.63 - 2026-08-29 09:29 - pace based conversion step picker placement
+
 ## v1.0.62 - 2026-08-29 09:10 - fix sheet animation replay conditional time step picker
 
 ## v1.0.61 - 2026-08-29 09:02 - yoga 60min default time step picker distinct kind colors
