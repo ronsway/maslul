@@ -398,7 +398,13 @@ def schedule_week(payload: WeekPayload, authorization: Optional[str] = Header(de
                 except Exception:
                     pass  # already gone / never existed - fine, proceed to create fresh
             wk = build_workout(w)
-            res = client.upload_running_workout(wk)
+            # upload_running_workout() (and its per-sport siblings) type-check that
+            # the instance matches their one sport before uploading - RunningWorkout
+            # only, CyclingWorkout only, etc. build_workout() already produces the
+            # right typed class per sport (_SPORT_CONFIG), so go straight through the
+            # untyped upload_workout(dict) instead of a sport-specific method - it
+            # works for all of them uniformly (every *Workout class shares to_dict()).
+            res = client.upload_workout(wk.to_dict())
             wid = res.get("workoutId") if isinstance(res, dict) else res
             client.schedule_workout(wid, w.date)
             results.append({"name": w.name, "date": w.date, "ok": True, "workoutId": wid})
