@@ -69,7 +69,10 @@ class Workout(BaseModel):
     warmupSec: int = 0
     cooldownSec: int = 0
     blocks: List[Block] = []
-    exercises: List[StrengthExercise] = []   # sport=="strength" only
+    exercises: List[StrengthExercise] = []   # sport in ("strength", "crossfit")
+    wodFormat: Optional[str] = None         # crossfit only: "forTime" | "amrap" | "emom"
+    wodCapMin: Optional[int] = None         # crossfit amrap: time cap in minutes
+    wodMinutes: Optional[int] = None        # crossfit emom: total duration in minutes
     garminWorkoutId: Optional[int] = None   # id from a previous send, so it can be replaced instead of duplicated
 
 class WeekPayload(BaseModel):
@@ -183,16 +186,40 @@ def build_steps(w: Workout):
     return steps
 
 def build_strength_steps(w: Workout):
+    """Strength: sets-of-reps circuit. Crossfit reuses the same shape but
+    branches by wodFormat - EMOM maps fairly naturally to a Garmin repeat
+    group (N one-minute rounds, each a pass through the exercises). AMRAP has
+    no Garmin equivalent (no "as many rounds as possible" step type), so it's
+    approximated as a single time-capped interval step - the round breakdown
+    lives in the app and the workout name, not something the watch enforces.
+    """
     steps = []
     order = 1
     if w.warmupSec:
         steps.append(create_warmup_step(float(w.warmupSec), order)); order += 1
-    for ex in w.exercises:
-        steps.append(create_strength_set(
-            ex.category, order, ex.sets, ex.reps, ex.restSec,
-            weight_kg=ex.weightKg,
-        ))
-        order += 3  # create_strength_set uses order, order+1, order+2 internally
+
+    fmt = w.wodFormat if w.sport == "crossfit" else None
+    if fmt == "amrap":
+        cap_sec = float((w.wodCapMin or 20) * 60)
+        steps.append(create_interval_step(cap_sec, order)); order += 1
+    elif fmt == "emom":
+        minutes = w.wodMinutes or 12
+        group_order = order
+        children = []
+        child_order = order + 1
+        for ex in w.exercises:
+            children.append(create_strength_set(ex.category, child_order, 1, ex.reps, 0, weight_kg=ex.weightKg))
+            child_order += 3
+        steps.append(create_repeat_group(minutes, children, group_order))
+        order = child_order
+    else:
+        for ex in w.exercises:
+            steps.append(create_strength_set(
+                ex.category, order, ex.sets, ex.reps, ex.restSec,
+                weight_kg=ex.weightKg,
+            ))
+            order += 3  # create_strength_set uses order, order+1, order+2 internally
+
     if w.cooldownSec:  # strength never sets this (no cooldown in that UI); crossfit always does
         steps.append(create_cooldown_step(float(w.cooldownSec), order))
     return steps
@@ -208,8 +235,14 @@ def _seg_secs(seg: Seg) -> float:
 def estimate_secs(w: Workout) -> int:
     if w.sport in ("strength", "crossfit"):
         total = float(w.warmupSec + w.cooldownSec)
-        for ex in w.exercises:
-            total += ex.sets * (ex.reps * _SEC_PER_REP + ex.restSec)
+        fmt = w.wodFormat if w.sport == "crossfit" else None
+        if fmt == "amrap":
+            total += (w.wodCapMin or 20) * 60
+        elif fmt == "emom":
+            total += (w.wodMinutes or 12) * 60
+        else:
+            for ex in w.exercises:
+                total += ex.sets * (ex.reps * _SEC_PER_REP + ex.restSec)
         return int(total)
     total = float(w.warmupSec + w.cooldownSec)
     for b in w.blocks:
