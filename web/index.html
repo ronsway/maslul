@@ -385,6 +385,9 @@
   @keyframes spin{to{transform:rotate(360deg);}}
   .ghost{width:100%; padding:14px; border-radius:14px; font-weight:700; font-size:15px;
     background:var(--panel); border:1px solid var(--line); color:var(--muted); margin-top:9px;}
+  .linkbtn{background:none; border:none; padding:0; margin:0; width:auto; font-weight:600;
+    color:var(--muted); font-size:12.5px; text-decoration:underline; text-underline-offset:2px;}
+  .linkbtn:disabled{opacity:.5;}
 
   .note{font-size:12.5px; color:var(--muted); line-height:1.55; background:var(--panel);
     border:1px solid var(--line); border-radius:12px; padding:11px 12px; margin-top:4px;}
@@ -506,9 +509,66 @@ async function signInGoogle(){
   await sb.auth.signInWithOAuth({provider:'google', options:{redirectTo:window.location.origin+window.location.pathname}});
 }
 async function signOut(){ await sb.auth.signOut(); }
+
+/* email+password sign-in, added alongside Google - same Supabase Auth user id
+   either way, so nothing downstream (RLS, garmin_connections, verify_user)
+   needs to know or care which method a given user used. */
+let AUTHFORM={open:false, mode:'signin', email:'', password:'', password2:'', busy:false, forgotSent:false, recovery:false, newPassword:''};
+function toggleEmailAuth(){ AUTHFORM.open=!AUTHFORM.open; render(); }
+function setAuthMode(m){ AUTHFORM.mode=m; AUTHFORM.forgotSent=false; render(); }
+async function submitAuthForm(){
+  const f=AUTHFORM;
+  if(f.busy) return;
+  if(!f.email || !f.password){ toast(t('authFillRequired'),'err'); return; }
+  if(f.mode==='signup' && f.password!==f.password2){ toast(t('passwordMismatch'),'err'); return; }
+  f.busy=true; render();
+  try{
+    if(f.mode==='signup'){
+      const {error}=await sb.auth.signUp({email:f.email, password:f.password});
+      if(error){ toast(t('authError')+error.message,'err'); return; }
+      toast(t('authSignupCheckEmail'),'ok');
+      f.mode='signin'; f.password=''; f.password2='';
+    } else {
+      const {error}=await sb.auth.signInWithPassword({email:f.email, password:f.password});
+      if(error){ toast(t('authError')+error.message,'err'); return; }
+      // success re-renders via onAuthStateChange below
+    }
+  }catch(e){
+    toast(t('authError')+e.message,'err');
+  }finally{
+    f.busy=false; render();
+  }
+}
+async function submitForgotPassword(){
+  const f=AUTHFORM;
+  if(!f.email){ toast(t('authFillRequired'),'err'); return; }
+  f.busy=true; render();
+  try{
+    await sb.auth.resetPasswordForEmail(f.email, {redirectTo:window.location.origin+window.location.pathname});
+  }catch(e){ /* fall through to the same generic message either way - don't reveal whether the email exists */ }
+  f.forgotSent=true; f.busy=false; render();
+}
+async function submitNewPassword(){
+  const f=AUTHFORM;
+  if(!f.newPassword || f.newPassword.length<6){ toast(t('passwordHint'),'err'); return; }
+  f.busy=true; render();
+  try{
+    const {error}=await sb.auth.updateUser({password:f.newPassword});
+    if(error){ toast(t('authError')+error.message,'err'); return; }
+    f.recovery=false; f.newPassword='';
+    toast(t('resetPasswordDone'),'ok');
+    if(AUTH.session){ await loadCloudData(AUTH.session.user.id); autoCheckCompleted(); }
+  }catch(e){
+    toast(t('authError')+e.message,'err');
+  }finally{
+    f.busy=false; render();
+  }
+}
+
 sb.auth.onAuthStateChange(async (event,session)=>{
   AUTH.session=session; AUTH.ready=true;
-  if(session && (event==='SIGNED_IN' || event==='INITIAL_SESSION')){
+  if(event==='PASSWORD_RECOVERY'){ AUTHFORM.recovery=true; render(); return; }
+  if(session && (event==='SIGNED_IN' || event==='INITIAL_SESSION') && !AUTHFORM.recovery){
     await loadCloudData(session.user.id);
     autoCheckCompleted(); // fire-and-forget background sync, doesn't block the render
   }
@@ -522,8 +582,28 @@ const MONTHS_I18N={
   en:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
 };
 const T={
-  gateSub:{he:'תוכנית האימונים שלך, מסונכרנת בין כל המכשירים. התחבר עם חשבון Google כדי להמשיך.', en:'Your training plan, synced across all your devices. Sign in with Google to continue.'},
+  gateSub:{he:'תוכנית האימונים שלך, מסונכרנת בין כל המכשירים. התחבר כדי להמשיך.', en:'Your training plan, synced across all your devices. Sign in to continue.'},
   googleSignIn:{he:'התחבר עם Google', en:'Sign in with Google'},
+  orDivider:{he:'או', en:'or'},
+  emailSignInToggle:{he:'התחבר עם אימייל', en:'Sign in with email'},
+  authTabSignin:{he:'כניסה', en:'Sign in'},
+  authTabSignup:{he:'הרשמה', en:'Sign up'},
+  emailLabel:{he:'אימייל', en:'Email'},
+  passwordLabel:{he:'סיסמה', en:'Password'},
+  passwordConfirmLabel:{he:'אימות סיסמה', en:'Confirm password'},
+  passwordHint:{he:'לפחות 6 תווים', en:'At least 6 characters'},
+  passwordMismatch:{he:'הסיסמאות לא תואמות', en:'Passwords don’t match'},
+  authSubmitSignin:{he:'התחבר', en:'Sign in'},
+  authSubmitSignup:{he:'צור חשבון', en:'Create account'},
+  authFillRequired:{he:'מלא אימייל וסיסמה', en:'Enter an email and password'},
+  authError:{he:'שגיאה: ', en:'Error: '},
+  authSignupCheckEmail:{he:'נשלח מייל לאימות - בדוק את תיבת הדואר שלך ואז התחבר.', en:'A confirmation email was sent - check your inbox, then sign in.'},
+  forgotPassword:{he:'שכחת סיסמה?', en:'Forgot password?'},
+  forgotSentMsg:{he:'אם קיים חשבון עם האימייל הזה, נשלח אליו קישור לאיפוס סיסמה.', en:'If an account exists for this email, a password reset link was sent.'},
+  resetPasswordTitle:{he:'קביעת סיסמה חדשה', en:'Set a new password'},
+  resetPasswordSubmit:{he:'עדכן סיסמה', en:'Update password'},
+  resetPasswordDone:{he:'הסיסמה עודכנה', en:'Password updated'},
+  backToOptions:{he:'חזרה', en:'Back'},
   addWorkout:{he:'הוסף אימון ליום זה', en:'Add workout for this day'},
   sendWeek:{he:'שלח שבוע לגרמין', en:'Send week to Garmin'},
   emptySub:{he:'בחר סוג אימון והגדר חימום, מקטעים ושחרור', en:'Choose a workout type and set warmup, segments and cooldown'},
@@ -1396,6 +1476,8 @@ function dismissToast(el){
   setTimeout(()=>el.remove(), 200);
 }
 function loginScreen(){
+  const f=AUTHFORM;
+  const side=S.lang==='he'?'right':'left';
   return `<div class="gate">
     <div class="brand"><h1 class="disp">Maslul</h1></div>
     <div class="sub">${t('gateSub')}</div>
@@ -1403,6 +1485,57 @@ function loginScreen(){
       <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.4 30.4 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.6c-.5 3-2.2 5.5-4.7 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 19.3c-.5 1.5-.8 3.1-.8 4.7s.3 3.2.8 4.7l-7.9 6.1C1 31.5 0 27.9 0 24s1-7.5 2.6-10.8l7.9 6.1z"/><path fill="#34A853" d="M24 48c6.4 0 11.9-2.1 15.8-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.2 2.3-6.3 0-11.6-3.5-13.5-9.7l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
       ${t('googleSignIn')}
     </button>
+    ${!f.open? `
+      <div style="display:flex; align-items:center; gap:10px; width:100%; max-width:280px">
+        <div style="flex:1; height:1px; background:var(--line)"></div>
+        <span style="color:var(--muted); font-size:12px">${t('orDivider')}</span>
+        <div style="flex:1; height:1px; background:var(--line)"></div>
+      </div>
+      <button class="linkbtn" onclick="toggleEmailAuth()">${t('emailSignInToggle')}</button>
+    ` : `
+      <div style="width:100%; max-width:280px; display:flex; flex-direction:column; gap:14px">
+        <div class="toggle">
+          <button class="${f.mode==='signin'?'on':''}" onclick="setAuthMode('signin')" ${f.busy?'disabled':''}>${t('authTabSignin')}</button>
+          <button class="${f.mode==='signup'?'on':''}" onclick="setAuthMode('signup')" ${f.busy?'disabled':''}>${t('authTabSignup')}</button>
+        </div>
+        <div class="field" style="margin-bottom:0; text-align:${side}">
+          <label>${t('emailLabel')}</label>
+          <input type="email" dir="ltr" autocomplete="email" value="${f.email}" oninput="AUTHFORM.email=this.value" ${f.busy?'disabled':''}>
+        </div>
+        <div class="field" style="margin-bottom:0; text-align:${side}">
+          <label>${t('passwordLabel')}</label>
+          <input type="password" dir="ltr" autocomplete="${f.mode==='signup'?'new-password':'current-password'}" value="${f.password}" oninput="AUTHFORM.password=this.value" ${f.busy?'disabled':''}>
+        </div>
+        ${f.mode==='signup'? `
+        <div class="field" style="margin-bottom:0; text-align:${side}">
+          <label>${t('passwordConfirmLabel')}</label>
+          <input type="password" dir="ltr" autocomplete="new-password" value="${f.password2}" oninput="AUTHFORM.password2=this.value" ${f.busy?'disabled':''}>
+        </div>
+        <div style="color:var(--muted); font-size:11px; margin-top:-8px">${t('passwordHint')}</div>` : ''}
+        <button class="primary disp" onclick="submitAuthForm()" ${f.busy?'disabled':''}>${f.mode==='signup'?t('authSubmitSignup'):t('authSubmitSignin')}</button>
+        ${f.mode==='signin'? (f.forgotSent
+            ? `<div class="sub" style="max-width:none">${t('forgotSentMsg')}</div>`
+            : `<button class="linkbtn" onclick="submitForgotPassword()" ${f.busy?'disabled':''}>${t('forgotPassword')}</button>`)
+          : ''}
+        <button class="linkbtn" onclick="toggleEmailAuth()" ${f.busy?'disabled':''}>${t('backToOptions')}</button>
+      </div>
+    `}
+  </div>`;
+}
+function resetPasswordScreen(){
+  const f=AUTHFORM;
+  const side=S.lang==='he'?'right':'left';
+  return `<div class="gate">
+    <div class="brand"><h1 class="disp">Maslul</h1></div>
+    <div class="sub">${t('resetPasswordTitle')}</div>
+    <div style="width:100%; max-width:280px; display:flex; flex-direction:column; gap:14px">
+      <div class="field" style="margin-bottom:0; text-align:${side}">
+        <label>${t('passwordLabel')}</label>
+        <input type="password" dir="ltr" autocomplete="new-password" value="${f.newPassword}" oninput="AUTHFORM.newPassword=this.value" ${f.busy?'disabled':''}>
+      </div>
+      <div style="color:var(--muted); font-size:11px; margin-top:-8px">${t('passwordHint')}</div>
+      <button class="primary disp" onclick="submitNewPassword()" ${f.busy?'disabled':''}>${t('resetPasswordSubmit')}</button>
+    </div>
   </div>`;
 }
 function loadingScreen(){ return `<div class="gate"><div class="brand"><h1 class="disp">Maslul</h1></div></div>`; }
@@ -1424,14 +1557,15 @@ function render(){
   const activeEl=document.activeElement;
   let focusInfo=null;
   if(activeEl && (activeEl.tagName==='INPUT'||activeEl.tagName==='TEXTAREA')){
-    const container=activeEl.closest('.sheet, .drawer');
+    const container=activeEl.closest('.sheet, .drawer, .gate');
     if(container){
       const all=[...container.querySelectorAll('input, textarea')];
       focusInfo={index:all.indexOf(activeEl), selStart:activeEl.selectionStart, selEnd:activeEl.selectionEnd};
     }
   }
   if(!AUTH.ready){ app.innerHTML=loadingScreen(); return; }
-  if(!AUTH.session){ app.innerHTML=loginScreen(); return; }
+  if(AUTHFORM.recovery){ app.innerHTML=resetPasswordScreen(); restoreFocus(focusInfo); return; }
+  if(!AUTH.session){ app.innerHTML=loginScreen(); restoreFocus(focusInfo); return; }
   const wk=weekDates(S.offset);
   const selDate=wk[S.sel];
   const rng=`${pad(wk[0].getDate())}/${pad(wk[0].getMonth()+1)}-${pad(wk[6].getDate())}/${pad(wk[6].getMonth()+1)}`;
@@ -1516,11 +1650,17 @@ function render(){
   ${renderSheet()}`;
 
   if(prevScroll){ const s=document.querySelector('.sheet, .drawer'); if(s) s.scrollTop=prevScroll; }
-  if(focusInfo && focusInfo.index>=0){
-    const container=document.querySelector('.sheet, .drawer');
-    const el=container? [...container.querySelectorAll('input, textarea')][focusInfo.index] : null;
-    if(el){ el.focus(); try{ el.setSelectionRange(focusInfo.selStart, focusInfo.selEnd); }catch(e){} }
-  }
+  restoreFocus(focusInfo);
+}
+/* full innerHTML replacement on every render() recreates every input node, which
+   drops focus off whatever the user was mid-typing into - re-focus it (and
+   restore the caret position) after the fact. Shared by the main app render
+   below and the .gate auth screens' early returns above. */
+function restoreFocus(focusInfo){
+  if(!focusInfo || focusInfo.index<0) return;
+  const container=document.querySelector('.sheet, .drawer, .gate');
+  const el=container? [...container.querySelectorAll('input, textarea')][focusInfo.index] : null;
+  if(el){ el.focus(); try{ el.setSelectionRange(focusInfo.selStart, focusInfo.selEnd); }catch(e){} }
 }
 
 function renderDay(date){
@@ -2249,8 +2389,8 @@ function garminSectionHTML(){
         <input type="password" dir="ltr" value="${form.password}" oninput="S.sheet.garminForm.password=this.value" ${form.busy?'disabled':''}></div>
       <button class="primary disp" style="margin-bottom:8px" onclick="connectGarmin()" ${form.busy?'disabled':''}>${t('garminConnectSubmit')}</button>
       <div style="display:flex; justify-content:space-between; align-items:center">
-        <button class="ghost" style="margin:0; padding:0; text-decoration:underline; color:var(--muted); font-size:12px" onclick="garminUseToken()" ${form.busy?'disabled':''}>${t('garminHaveTokenLink')}</button>
-        <button class="ghost" style="margin:0; padding:0; text-decoration:underline; color:var(--muted); font-size:12px" onclick="closeGarminForm()" ${form.busy?'disabled':''}>${t('garminCancel')}</button>
+        <button class="linkbtn" onclick="garminUseToken()" ${form.busy?'disabled':''}>${t('garminHaveTokenLink')}</button>
+        <button class="linkbtn" onclick="closeGarminForm()" ${form.busy?'disabled':''}>${t('garminCancel')}</button>
       </div>`;
   } else if(form && form.mode==='token'){
     formHTML=`
@@ -2260,7 +2400,7 @@ function garminSectionHTML(){
           style="width:100%; min-height:70px; background:var(--panel); border:1px solid var(--line); color:var(--txt);
           border-radius:12px; padding:12px; font-family:'JetBrains Mono'; font-size:12px; resize:vertical; box-sizing:border-box">${form.token||''}</textarea></div>
       <button class="primary disp" style="margin-bottom:8px" onclick="connectGarminToken()" ${form.busy?'disabled':''}>${t('garminConnectTokenSubmit')}</button>
-      <button class="ghost" style="margin:0; padding:0; text-decoration:underline; color:var(--muted); font-size:12px" onclick="closeGarminForm()" ${form.busy?'disabled':''}>${t('garminCancel')}</button>`;
+      <button class="linkbtn" onclick="closeGarminForm()" ${form.busy?'disabled':''}>${t('garminCancel')}</button>`;
   }
 
   return `<div class="drawersec">
