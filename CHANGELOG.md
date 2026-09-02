@@ -5,6 +5,10 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.74 - 2026-09-02 15:56 - Deploy
+
+## v1.0.73 - 2026-09-02 15:56 - fix unstyled email sign in link button
+
 ## v1.0.72 - 2026-08-29 15:38 - add email plus password sign in alongside Google
 
 ## v1.0.71 - 2026-08-29 15:02 - fix non-running workouts failing to upload to Garmin
