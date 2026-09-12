@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.82 - 2026-09-12 13:48 - Revert Garmin needs_reauth change
+
 ## v1.0.81 - 2026-09-12 13:39 - Only require manual Garmin reconnect on real auth failure not transient errors
 
 ## v1.0.80 - 2026-09-12 13:28 - Move races to popup coach-style weekly plan fix RTL circles redesign add-race flow
