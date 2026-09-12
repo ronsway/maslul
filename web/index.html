@@ -255,7 +255,8 @@
   .hamburger{width:40px; height:40px; border-radius:12px; background:var(--panel2);
     border:1px solid var(--line); font-size:18px; color:var(--txt); display:grid; place-items:center; flex:none;}
   .drawerscrim{position:fixed; inset:0; background:rgba(6,8,11,.66); -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px);
-    z-index:41; animation:scrimIn .22s ease;}
+    z-index:41;}
+  .drawerscrim.entering{animation:scrimIn .22s ease;}
   .drawerscrim.closing{animation:scrimOut .22s ease forwards;}
   @keyframes scrimIn{from{opacity:0;} to{opacity:1;}}
   @keyframes scrimOut{from{opacity:1;} to{opacity:0;}}
@@ -766,10 +767,11 @@ const T={
   raceIncludeWarmup:{he:'כלול חימום כאימון נפרד', en:'Include a separate warmup'},
   raceIncludeCooldown:{he:'כלול קירור כאימון נפרד', en:'Include a separate cooldown'},
   raceTargetLabel:{he:'זמן יעד (דק׳)', en:'Target time (min)'},
-  raceTerrainLabel:{he:'סוג מסלול', en:'Race terrain'},
-  roadRace:{he:'כביש', en:'Road'},
-  trailRace:{he:'שטח', en:'Trail'},
+  raceTerrainLabel:{he:'סוג מרוץ', en:'Race type'},
+  roadRace:{he:'מרוץ כביש', en:'Road race'},
+  trailRace:{he:'מרוץ שטח', en:'Trail race'},
   trailRacePlanHint:{he:'בשטח הקצב משתנה לפי העליות והתנאים. השעון יכוון לזמן היעד הכולל, לפי מאמץ ולא לפי קצב קבוע לק״מ.', en:'Trail pace changes with elevation and conditions. Your watch will guide the total target time by effort, not a fixed per-km pace.'},
+  trailPlanNote:{he:'תכנית שטח: ריצות לפי זמן, עליות וזמן על הרגליים במקום קצבי כביש קבועים.', en:'Trail plan: time-on-feet runs and hills, rather than fixed road paces.'},
   splitStrategyLabel:{he:'אסטרטגיית פיצול', en:'Split strategy'},
   splitNeedsTargetHint:{he:'ייכנס לתוקף לאחר הזנת זמן יעד', en:'Takes effect once you set a target time'},
   firstHalfWord:{he:'מחצית ראשונה', en:'First half'},
@@ -1421,6 +1423,14 @@ function pickQualityPositions(n, count){
   return chosen.sort((a,b)=>a-b);
 }
 function dayTypesFor(n, phase, trailRace=false){
+  if(trailRace){
+    // Make the distinction visible in every generated week: the base is
+    // time-on-feet on terrain, with climbing work replacing road speedwork.
+    const arr=Array(n).fill('trail');
+    const count=qualityCount(n, phase);
+    pickQualityPositions(n, count).forEach(i=>arr[i]='hills');
+    return arr;
+  }
   const count=qualityCount(n, phase);
   const qPositions=pickQualityPositions(n, count);
   const qualityChoices=[]; let lastQ=null;
@@ -1473,6 +1483,7 @@ function genContextNote(offset){
   const race=nextRace(offset), w=weeksToRaceFor(offset), phase=phaseFor(w);
   let s=t('phaseLabel')+PHASE_NAME[phase][S.lang];
   s += race? (t('weeksToRaceNote')+w+t('weeksToRaceSuffix')+race.name) : t('noRaceSet');
+  if(race?.terrain==='trail') s+='<br>'+t('trailPlanNote');
   return s;
 }
 
@@ -2450,7 +2461,8 @@ function profileSheet(){
   const initial=(profileName(p)||'?').trim().charAt(0).toUpperCase()||'?';
   const side=S.lang==='he'?'side-right':'side-left';
   const closing=S.sheet.closing?' closing':'';
-  return `<div class="drawerscrim${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${sheetEntering()}${closing}">
+  const entering=sheetEntering();
+  return `<div class="drawerscrim${entering}${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${entering}${closing}">
     <h2 class="disp">${t('profileTitle')}</h2>
 
     <div class="drawersec" style="margin-top:0; border-top:none; padding-top:0">
@@ -2530,7 +2542,8 @@ function zonesSheet(){
   const p=S.profile;
   const side=S.lang==='he'?'side-right':'side-left';
   const closing=S.sheet.closing?' closing':'';
-  return `<div class="drawerscrim${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${sheetEntering()}${closing}">
+  const entering=sheetEntering();
+  return `<div class="drawerscrim${entering}${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${entering}${closing}">
     <div class="backrow"><button onclick="backToProfile()">${backArrow()} ${t('backWord')}</button></div>
     <h2 class="disp">${t('secZones')}</h2>
     <div class="row2">
@@ -2553,7 +2566,8 @@ function racesSheet(){
   const races=(p.races||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
   const side=S.lang==='he'?'side-right':'side-left';
   const closing=S.sheet.closing?' closing':'';
-  return `<div class="drawerscrim${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${sheetEntering()}${closing}">
+  const entering=sheetEntering();
+  return `<div class="drawerscrim${entering}${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${entering}${closing}">
     <h2 class="disp">${t('racesTitle')}</h2>
     ${races.length? races.map(r=>{
         const dLeft=daysUntil(r.date);

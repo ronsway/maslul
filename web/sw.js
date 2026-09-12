@@ -2,7 +2,7 @@
 // offline. Network calls to Supabase and the Garmin backend are left alone
 // (cross-origin, never intercepted here) - those simply fail naturally when
 // offline, same as any other fetch() in the page.
-const CACHE_NAME = 'maslul-v1.0.75';
+const CACHE_NAME = 'maslul-v1.0.76';
 const CORE_ASSETS = ['/', '/index.html', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {

@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.76 - 2026-09-12 12:36 - Fix settings drawer flicker and clarify trail race planning
+
 ## v1.0.75 - 2026-09-12 12:16 - Add trail runs and trail race planning
 
 ## v1.0.74 - 2026-09-02 15:56 - Deploy
