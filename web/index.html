@@ -775,11 +775,13 @@ const T={
   roadBase:{he:'בסיס ותנועה', en:'Base & consistency'},
   roadBuild:{he:'בנייה ספציפית', en:'Race-specific build'},
   roadPeak:{he:'חידוד וקצב מרוץ', en:'Peak & race pace'},
-  roadRace:{he:'הורדת עומס ומרוץ', en:'Taper & race'},
+  roadRacePhase:{he:'הורדת עומס ומרוץ', en:'Taper & race'},
   trailBase:{he:'בסיס שטח וזמן על הרגליים', en:'Trail base & time on feet'},
   trailBuild:{he:'עליות, ירידות ושטח טכני', en:'Climbing, descents & technical terrain'},
   trailPeak:{he:'ספציפיות למסלול המרוץ', en:'Race-course specificity'},
   trailRacePhase:{he:'הורדת עומס ומרוץ שטח', en:'Taper & trail race'},
+  coachWeekWord:{he:'שבוע', en:'Week'},
+  coachRaceWeekWord:{he:'שבוע המרוץ', en:'Race week'},
   autoGenerate:{he:'צור שבוע אוטומטית', en:'Auto-generate week'},
   genConfigTitle:{he:'תכנון השבוע', en:'Plan the week'},
   pickDaysLabel:{he:'באילו ימים תרצה להתאמן השבוע?', en:'Which days do you want to train this week?'},
@@ -1920,7 +1922,7 @@ function roadmapStages(race){
   const terrain=race.terrain==='trail'?'trail':'road';
   const labels=terrain==='trail'
     ? {base:'trailBase',build:'trailBuild',peak:'trailPeak',race:'trailRacePhase'}
-    : {base:'roadBase',build:'roadBuild',peak:'roadPeak',race:'roadRace'};
+    : {base:'roadBase',build:'roadBuild',peak:'roadPeak',race:'roadRacePhase'};
   const now=new Date(); now.setHours(0,0,0,0);
   let cursor=now;
   const stages=[];
@@ -1978,9 +1980,9 @@ function coachSessions(terrain,phase){
 function coachPlanWeeks(races){
   const start=startOfWeek(0);
   const last=new Date(races[races.length-1].date+'T00:00:00');
-  const count=Math.min(52,Math.max(1,Math.ceil((last-start)/(7*86400000))+1));
+  const count=Math.min(52,Math.max(1,Math.floor((last-start)/(7*86400000))+1));
   const baseline=roadmapBaselineKm();
-  return [...Array(count)].map((_,i)=>{
+  const weeks=[...Array(count)].map((_,i)=>{
     const weekStart=addDays(start,i*7), weekEnd=addDays(weekStart,6);
     const target=races.find(r=>new Date(r.date+'T00:00:00')>=weekStart) || races[races.length-1];
     const raceDate=new Date(target.date+'T00:00:00');
@@ -1991,18 +1993,28 @@ function coachPlanWeeks(races){
     const cycle=i%4===3?0.76:1+Math.min(0.12,(i%4)*0.04);
     const phaseFactor={base:1,build:1.08,peak:0.82,race:0.45}[phase];
     const km=Math.max(10,Math.round(baseline*(1+Math.floor(i/4)*0.04)*cycle*phaseFactor));
-    return {weekStart,weekEnd,target,terrain,phase,km,sessions:coachSessions(terrain,phase)};
+    return {weekStart,weekEnd,target,terrain,phase,raceWeek,km,sessions:coachSessions(terrain,phase)};
   });
+  // Countdown restarts at every race: weeks leading into a race are numbered
+  // back from the race week (8,7,...,1), and the race week itself is its own
+  // label rather than "week 0" - each race gets its own fresh block, matched
+  // by `target` (the same race object every week in that block points to).
+  let block=[];
+  const flushBlock=()=>{ block.forEach((wk,j)=>{ wk.weekNum=wk.raceWeek?null:block.length-1-j; }); block=[]; };
+  weeks.forEach(w=>{ block.push(w); if(w.raceWeek) flushBlock(); });
+  flushBlock();
+  return weeks;
 }
 function coachWeekCard(w){
   const phaseTitle=w.terrain==='trail'
     ? t({base:'trailBase',build:'trailBuild',peak:'trailPeak',race:'trailRacePhase'}[w.phase])
-    : t({base:'roadBase',build:'roadBuild',peak:'roadPeak',race:'roadRace'}[w.phase]);
+    : t({base:'roadBase',build:'roadBuild',peak:'roadPeak',race:'roadRacePhase'}[w.phase]);
   const load=w.terrain==='trail'
     ? `~${Math.max(60,Math.round(w.km*7/15)*15)} ${t('min')}`
     : `~${w.km} ${t('kmShort')}`;
+  const weekLabel=w.raceWeek? t('coachRaceWeekWord') : `${t('coachWeekWord')} ${w.weekNum}`;
   return `<div class="coachweek">
-    <div class="coachhead"><div><div class="coachname">${phaseTitle} · ${w.target.name}</div>
+    <div class="coachhead"><div><div class="coachname">${weekLabel} · ${phaseTitle} · ${w.target.name}</div>
       <div class="coachmeta">${roadmapRange(w.weekStart,w.weekEnd)}</div></div><div class="coachload">${load}</div></div>
     <ul class="coachitems">${w.sessions.map(s=>`<li>${s}</li>`).join('')}</ul>
   </div>`;
