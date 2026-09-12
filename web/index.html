@@ -164,7 +164,7 @@
   .roadmapmeta{display:flex; flex-wrap:wrap; gap:6px; color:var(--muted); font-size:12px; margin-top:4px;}
   .roadtag{background:var(--panel2); border:1px solid var(--line); border-radius:99px; padding:3px 8px; color:var(--txt); font-weight:700; white-space:nowrap;}
   .roadstages{display:flex; flex-direction:column; gap:0; margin-top:12px;}
-  .roadstage{position:relative; padding:0 0 15px 25px; min-height:58px;}
+  .roadstage{position:relative; padding-block:0 15px; padding-inline-start:25px; min-height:58px;}
   .roadstage:last-child{padding-bottom:0;}
   .roadstage::before{content:''; position:absolute; inset-inline-start:7px; top:17px; bottom:-1px; width:2px; background:var(--line);}
   .roadstage:last-child::before{display:none;}
@@ -175,6 +175,15 @@
   .roadtitle{font-family:'Rubik'; font-size:14px; font-weight:800;}
   .roaddates{font-family:'JetBrains Mono'; font-size:10.5px; color:var(--muted); margin-top:1px;}
   .roaddesc{font-size:12px; color:var(--muted); line-height:1.4; margin-top:3px;}
+  .coachweek{background:var(--panel2); border:1px solid var(--line); border-radius:13px; padding:11px 12px; margin:8px 0;}
+  .coachhead{display:flex; justify-content:space-between; align-items:flex-start; gap:8px;}
+  .coachname{font-family:'Rubik'; font-weight:800; font-size:13.5px;}
+  .coachmeta{font-family:'JetBrains Mono'; color:var(--muted); font-size:10.5px; margin-top:2px;}
+  .coachload{font-family:'JetBrains Mono'; font-size:12px; font-weight:800; color:var(--easy); white-space:nowrap;}
+  .coachitems{margin:8px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:5px;}
+  .coachitems li{font-size:12px; color:var(--muted); line-height:1.35; padding-inline-start:13px; position:relative;}
+  .coachitems li::before{content:'•'; position:absolute; inset-inline-start:0; color:var(--work); font-weight:800;}
+  .racesdialog{width:calc(100% - 28px); max-width:440px; max-height:90vh; border-radius:22px; border:1px solid var(--line);}
 
   /* ---- jump-to-date calendar ---- */
   .calnav{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;}
@@ -1942,13 +1951,70 @@ function roadmapRaceCard(race,primary){
     </div>`).join('')}</div>
   </div>`;
 }
+function roadmapBaselineKm(){
+  const samples=[];
+  for(let i=-4;i<0;i++){
+    const s=weekStats(i);
+    const value=s.done>0?s.done:s.planned;
+    if(value>0) samples.push(value);
+  }
+  return samples.length? Math.max(12,Math.round(samples.reduce((a,b)=>a+b,0)/samples.length)) : 25;
+}
+function coachSessions(terrain,phase){
+  const road={
+    base:{he:['ריצה קלה רציפה','אימון טכניקה או עליות קלות','ריצה ארוכה קלה','כוח ותנועתיות'],en:['Easy continuous run','Technique or light hills','Easy long run','Strength and mobility']},
+    build:{he:['אינטרוולים מבוקרים','טמפו בקצב סף','ריצה ארוכה קלה','התאוששות או כוח'],en:['Controlled intervals','Threshold-pace tempo','Easy long run','Recovery or strength']},
+    peak:{he:['מקטעי קצב מרוץ','אימון קצר וחד','ריצה ארוכה בינונית','התאוששות'],en:['Race-pace segments','Short sharp session','Moderate long run','Recovery']},
+    race:{he:['2 ריצות קלות קצרות','האצות קצרות לשמירת חדות','מנוחה לפני המרוץ','מרוץ'],en:['2 short easy runs','Short strides to stay sharp','Rest before race','Race']},
+  };
+  const trail={
+    base:{he:['ריצת שטח קלה לפי זמן','הליכה בעליות או תרגול כוח','ריצת שטח ארוכה קלה','תנועתיות לקרסוליים וליבה'],en:['Easy trail run by time','Uphill hiking or strength','Easy long trail run','Ankle and core mobility']},
+    build:{he:['חזרות עליות לפי מאמץ','ריצת שטח טכנית עם ירידות מבוקרות','ריצה ארוכה בשטח עם גובה','כוח לרגליים וליבה'],en:['Effort-based hill repeats','Technical trail with controlled descents','Long hilly trail run','Leg and core strength']},
+    peak:{he:['סימולציית גובה ומסלול','ריצת שטח עם ציוד ותזונה','ירידות וטכניקה בשליטה','התאוששות'],en:['Elevation and course simulation','Trail run with race gear and fueling','Controlled descents and technique','Recovery']},
+    race:{he:['2 ריצות שטח קלות קצרות','עליות קצרות לשמירת חדות','בדיקת ציוד ומנוחה','מרוץ שטח לפי מאמץ'],en:['2 short easy trail runs','Short climbs to stay sharp','Gear check and rest','Trail race by effort']},
+  };
+  return (terrain==='trail'?trail:road)[phase][S.lang];
+}
+function coachPlanWeeks(races){
+  const start=startOfWeek(0);
+  const last=new Date(races[races.length-1].date+'T00:00:00');
+  const count=Math.min(52,Math.max(1,Math.ceil((last-start)/(7*86400000))+1));
+  const baseline=roadmapBaselineKm();
+  return [...Array(count)].map((_,i)=>{
+    const weekStart=addDays(start,i*7), weekEnd=addDays(weekStart,6);
+    const target=races.find(r=>new Date(r.date+'T00:00:00')>=weekStart) || races[races.length-1];
+    const raceDate=new Date(target.date+'T00:00:00');
+    const raceWeek=raceDate>=weekStart && raceDate<=weekEnd;
+    const remaining=Math.max(0,Math.ceil((raceDate-weekStart)/(7*86400000)));
+    const phase=raceWeek?'race':phaseFor(remaining);
+    const terrain=target.terrain==='trail'?'trail':'road';
+    const cycle=i%4===3?0.76:1+Math.min(0.12,(i%4)*0.04);
+    const phaseFactor={base:1,build:1.08,peak:0.82,race:0.45}[phase];
+    const km=Math.max(10,Math.round(baseline*(1+Math.floor(i/4)*0.04)*cycle*phaseFactor));
+    return {weekStart,weekEnd,target,terrain,phase,km,sessions:coachSessions(terrain,phase)};
+  });
+}
+function coachWeekCard(w){
+  const phaseTitle=w.terrain==='trail'
+    ? t({base:'trailBase',build:'trailBuild',peak:'trailPeak',race:'trailRacePhase'}[w.phase])
+    : t({base:'roadBase',build:'roadBuild',peak:'roadPeak',race:'roadRace'}[w.phase]);
+  const load=w.terrain==='trail'
+    ? `~${Math.max(60,Math.round(w.km*7/15)*15)} ${t('min')}`
+    : `~${w.km} ${t('kmShort')}`;
+  return `<div class="coachweek">
+    <div class="coachhead"><div><div class="coachname">${phaseTitle} · ${w.target.name}</div>
+      <div class="coachmeta">${roadmapRange(w.weekStart,w.weekEnd)}</div></div><div class="coachload">${load}</div></div>
+    <ul class="coachitems">${w.sessions.map(s=>`<li>${s}</li>`).join('')}</ul>
+  </div>`;
+}
 function roadmapSheet(){
   const today=ymd(new Date());
   const races=(S.profile.races||[]).filter(r=>r.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
+  const weeks=races.length?coachPlanWeeks(races):[];
   return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet${sheetEntering()}">
     <div class="grab"></div><h2 class="disp">${t('roadmapTitle')}</h2>
     <div class="note roadintro">${t('roadmapIntro')}</div>
-    ${races.length?races.map((r,i)=>roadmapRaceCard(r,i===0)).join(''):`<div class="note">${t('roadmapNoRaces')}</div>`}
+    ${races.length?`<div class="note">${t('roadmapPriority')}</div>${weeks.map(coachWeekCard).join('')}`:`<div class="note">${t('roadmapNoRaces')}</div>`}
     <button class="ghost" onclick="closeSheet()">${t('close')}</button>
   </div></div>`;
 }
@@ -2667,15 +2733,13 @@ function zonesSheet(){
   </div></div>`;
 }
 
-/* upcoming-races sub-sheet, same reasoning as zonesSheet() */
+/* Upcoming races are a focused pop-up, rather than a settings-style side panel. */
 function racesSheet(){
   const p=S.profile; const rd=S.sheet.raceDraft;
   const rdKm=parseFloat(rd.km)||0;
   const races=(p.races||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
-  const side=S.lang==='he'?'side-right':'side-left';
-  const closing=S.sheet.closing?' closing':'';
-  const entering=sheetEntering();
-  return `<div class="drawerscrim${entering}${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${entering}${closing}">
+  return `<div class="scrim on center" onclick="if(event.target===this)closeSheet()"><div class="sheet dialog racesdialog${sheetEntering()}">
+    <div class="grab"></div>
     <h2 class="disp">${t('racesTitle')}</h2>
     ${races.length? races.map(r=>{
         const dLeft=daysUntil(r.date);
@@ -2852,7 +2916,7 @@ function saveProfile(){
   save(); closeSheet();
 }
 function closeSheet(){
-  if(S.sheet && ['profile','zones','races'].includes(S.sheet.mode)){
+  if(S.sheet && ['profile','zones'].includes(S.sheet.mode)){
     if(S.sheet.closing) return;
     S.sheet.closing=true; render();
     setTimeout(()=>{ S.sheet=null; render(); }, 220);
