@@ -24,7 +24,7 @@ from typing import Optional
 import httpx
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from fastapi import HTTPException
-from garminconnect import Garmin, GarminConnectAuthenticationError
+from garminconnect import Garmin
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://qvbdnaeewytfoolmubch.supabase.co")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
@@ -155,18 +155,7 @@ def get_client_for_user(user_id: str) -> Garmin:
     client = Garmin()
     try:
         client.login(tokenstore=token)
-    except GarminConnectAuthenticationError:
-        # The stored token itself is genuinely dead (revoked, or Garmin no
-        # longer accepts it) - garminconnect already tried its own recovery
-        # (proactive DI-token refresh, discarding a poisoned cache) before
-        # raising this, and can't go further without a password, which we
-        # never store. This is the only case that actually needs the user to
-        # reconnect.
+    except Exception:
         mark_needs_reauth(user_id)
-        raise NeedsReauth() from None
-    # Anything else (GarminConnectConnectionError, GarminConnectTooManyRequestsError,
-    # a network blip, a transient anti-bot challenge) leaves the connection's
-    # stored status alone - the token is likely still fine, so the next request
-    # just retries instead of forcing the user through a manual reconnect for
-    # something that wasn't their doing and wasn't really a disconnect.
+        raise
     return client
