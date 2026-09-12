@@ -29,6 +29,7 @@
     --elliptical:#22D3C5; /* elliptical - was sharing --easy with rowing, now distinct */
     --tempo:#E85D75;   /* tempo - was sharing --work with intervals/hills/fartlek */
     --hills:#C97B4A;   /* hills */
+    --trail:#629A62;   /* trail running */
     --fartlek:#B565D8; /* fartlek */
     --shadow:0 8px 30px rgba(0,0,0,.45);
     --del-border:#3a2422;
@@ -289,8 +290,9 @@
   .types.sportrow{grid-template-columns:repeat(6,1fr); gap:5px;}
   .types.sportrow .type{padding:10px 2px 8px;}
   .type .icon{font-size:19px; line-height:1;}
-  /* kind row: 6 short text labels (5 kinds + race) on one line */
-  .types.kindrow{grid-template-columns:repeat(6,1fr); gap:4px;}
+  /* Running has two extra choices (trail and race), so keep the choices
+     comfortably tappable instead of cramming seven labels into one row. */
+  .types.kindrow{grid-template-columns:repeat(4,1fr); gap:4px;}
   .types.kindrow .type{padding:8px 1px 6px;}
   .types.kindrow .type .tn{font-size:10.5px; line-height:1.15;}
 
@@ -764,6 +766,10 @@ const T={
   raceIncludeWarmup:{he:'כלול חימום כאימון נפרד', en:'Include a separate warmup'},
   raceIncludeCooldown:{he:'כלול קירור כאימון נפרד', en:'Include a separate cooldown'},
   raceTargetLabel:{he:'זמן יעד (דק׳)', en:'Target time (min)'},
+  raceTerrainLabel:{he:'סוג מסלול', en:'Race terrain'},
+  roadRace:{he:'כביש', en:'Road'},
+  trailRace:{he:'שטח', en:'Trail'},
+  trailRacePlanHint:{he:'בשטח הקצב משתנה לפי העליות והתנאים. השעון יכוון לזמן היעד הכולל, לפי מאמץ ולא לפי קצב קבוע לק״מ.', en:'Trail pace changes with elevation and conditions. Your watch will guide the total target time by effort, not a fixed per-km pace.'},
   splitStrategyLabel:{he:'אסטרטגיית פיצול', en:'Split strategy'},
   splitNeedsTargetHint:{he:'ייכנס לתוקף לאחר הזנת זמן יעד', en:'Takes effect once you set a target time'},
   firstHalfWord:{he:'מחצית ראשונה', en:'First half'},
@@ -890,6 +896,7 @@ const TYPES={
   intervals:{name:'אינטרוולים', en:'Intervals', desc:'מקטעי מאמץ מהיר עם התאוששות', descEn:'Fast effort segments with recovery', color:'--work'},
   tempo:{name:'טמפו', en:'Tempo', desc:'מאמץ רציף בקצב סף נוח-קשה', descEn:'Sustained effort at threshold pace', color:'--tempo'},
   hills:{name:'עליות', en:'Hills', desc:'חזרות מאמץ גבוה עם התאוששות קלה', descEn:'High-effort repeats with easy recovery', color:'--hills'},
+  trail:{name:'ריצת שטח', en:'Trail Run', desc:'ריצה רציפה בשטח לפי זמן ומאמץ', descEn:'Terrain run guided by time and effort', color:'--trail'},
   fartlek:{name:'פארטלק', en:'Fartlek', desc:'משחקי קצב, האצות משתנות', descEn:'Speed play, varying surges', color:'--fartlek'},
   volume:{name:'נפח', en:'Volume', desc:'מאמץ רציף בקצב קל', descEn:'Continuous effort at an easy pace', color:'--easy'},
   // recovery merged into volume (owner: "same thing, no need for both") - kept
@@ -1033,10 +1040,14 @@ function defaultWorkout(sport,type,date){
     // distance is only meaningful for running - other cardio sports stay time-based
     base.blocks = sport==='running'? [{kind:'steady', mode:'dist', value:8000}]
                                     : [{kind:'steady', mode:'time', value:1200}]; }
+  if(type==='trail'){ base.warmupSec=0; base.cooldownSec=0;
+    // Trail distance is highly route- and elevation-dependent. A timed effort
+    // is both more useful on the watch and better for comparing training load.
+    base.blocks=[{kind:'steady', mode:'time', value:3600}]; }
   if(type==='recovery'){ base.warmupSec=sport==='running'?300:0; base.cooldownSec=sport==='running'?300:0;
     base.blocks=[{kind:'steady', mode:'time', value:1200}]; }
   if(type==='race'){ base.warmupSec=0; base.cooldownSec=0; // a race is always its own independent workout -
-    base.raceDistM=5000; base.raceTargetSec=null; base.raceSplit='negative'; // warmup/cooldown are separate entries, see raceDistSection()
+    base.raceDistM=5000; base.raceTargetSec=null; base.raceSplit='negative'; base.raceTerrain='road'; // warmup/cooldown are separate entries, see raceDistSection()
     base.blocks=[{kind:'steady', mode:'dist', value:5000}]; }
   if(sport==='yoga'){ base.warmupSec=0; base.cooldownSec=0;
     base.blocks=[{kind:'steady', mode:'time', value:3600}]; }
@@ -1071,12 +1082,18 @@ function raceWorkouts(race){
   // a target time + split strategy on the race itself (set in Settings > Races)
   // takes over pacing; otherwise fall back to the older thrPace-based negative
   // split so races added before this existed keep behaving the same
-  const splits=race.km? (race.targetSec? buildTargetSplits(race.km, race.targetSec, race.split||'negative') : buildRaceSplits(race.km)) : [];
+  const isTrail=race.terrain==='trail';
+  // On uneven terrain, fixed kilometre pace is misleading. A trail race with
+  // a target uses one elapsed-time effort on the watch; without a target it
+  // stays distance-based. Road races retain their per-km split plan.
+  const splits=isTrail
+    ? (race.targetSec ? [{kind:'steady', mode:'time', value:race.targetSec}] : (race.km?[{kind:'steady', mode:'dist', value:Math.round(race.km*1000)}]:[]))
+    : (race.km? (race.targetSec? buildTargetSplits(race.km, race.targetSec, race.split||'negative') : buildRaceSplits(race.km)) : []);
   return [
     { id:'race-'+race.id+'-warm', type:'volume', name:t('warmup')+' · '+race.name, raceId:race.id, raceAux:'warm', done:false,
       warmupSec:0, cooldownSec:0, blocks:[{kind:'steady', mode:'time', value:900}] },
     { id:'race-'+race.id+'-main', type:'race', name:race.name, raceId:race.id, done:false,
-      warmupSec:0, cooldownSec:0, raceDistM:Math.round((race.km||5)*1000), raceTargetSec:race.targetSec||null, raceSplit:race.split||'negative',
+      warmupSec:0, cooldownSec:0, raceDistM:Math.round((race.km||5)*1000), raceTargetSec:race.targetSec||null, raceSplit:race.split||'negative', raceTerrain:isTrail?'trail':'road',
       blocks:splits },
     { id:'race-'+race.id+'-cool', type:'volume', name:t('cooldown')+' · '+race.name, raceId:race.id, raceAux:'cool', done:false,
       warmupSec:0, cooldownSec:0, blocks:[{kind:'steady', mode:'time', value:900}] },
@@ -1403,19 +1420,22 @@ function pickQualityPositions(n, count){
   for(const p of shuffled){ if(chosen.length>=count) break; if(!chosen.includes(p)) chosen.push(p); }
   return chosen.sort((a,b)=>a-b);
 }
-function dayTypesFor(n, phase){
+function dayTypesFor(n, phase, trailRace=false){
   const count=qualityCount(n, phase);
   const qPositions=pickQualityPositions(n, count);
   const qualityChoices=[]; let lastQ=null;
   for(let i=0;i<count;i++){
-    let q=QUALITY_TYPES[Math.floor(Math.random()*QUALITY_TYPES.length)];
-    if(q===lastQ) q=QUALITY_TYPES[(QUALITY_TYPES.indexOf(q)+1)%QUALITY_TYPES.length];
+    // Hills and time-on-feet trail runs prepare climbing, descending and
+    // variable footing, unlike a road-race block focused on flat speed.
+    const pool=trailRace? ['hills','trail'] : QUALITY_TYPES;
+    let q=pool[Math.floor(Math.random()*pool.length)];
+    if(q===lastQ) q=pool[(pool.indexOf(q)+1)%pool.length];
     qualityChoices.push(q); lastQ=q;
   }
   const arr=[]; let qi=0;
   for(let i=0;i<n;i++){
     if(qPositions.includes(i)){ arr.push(qualityChoices[qi]); qi++; }
-    else arr.push(EASY_TYPES[Math.floor(Math.random()*EASY_TYPES.length)]);
+    else arr.push(trailRace ? 'trail' : EASY_TYPES[Math.floor(Math.random()*EASY_TYPES.length)]);
   }
   return arr;
 }
@@ -1440,13 +1460,14 @@ function generateWeekPlan(offset, dayIdx){
   // don't schedule a training session on a day you're racing
   const sortedDays=dayIdx.slice().sort((a,b)=>a-b).filter(di=>!raceDates.has(ymd(dates[di])));
   const skippedForRace=dayIdx.length-sortedDays.length;
-  const types=dayTypesFor(sortedDays.length, phase);
+  const race=nextRace(offset);
+  const types=dayTypesFor(sortedDays.length, phase, race?.terrain==='trail');
   const plan={};
   sortedDays.forEach((di,idx)=>{
     const date=dates[di]; const type=types[idx]||'volume';
     plan[ymd(date)]=[scaleWorkout(defaultWorkout('running',type,date), factor)];
   });
-  return {plan, phase, factor, weekNum, weeksToRace:wToRace, race:nextRace(offset), skippedForRace};
+  return {plan, phase, factor, weekNum, weeksToRace:wToRace, race, skippedForRace};
 }
 function genContextNote(offset){
   const race=nextRace(offset), w=weeksToRaceFor(offset), phase=phaseFor(w);
@@ -2030,7 +2051,9 @@ function editorSheet(){
     <div class="types kindrow">
       ${CARDIO_KINDS.map(k=>`<button class="type ${d.type===k?'on':''}" style="--c:var(${TYPES[k].color})" onclick="setKind('${k}')" title="${typeDesc(k)}">
         <div class="tn">${typeLabel(k)}</div></button>`).join('')}
-      ${d.sport==='running'? `<button class="type race ${isRace?'on':''}" style="--c:var(${TYPES.race.color})" onclick="setKind('race')" title="${typeDesc('race')}">
+      ${d.sport==='running'? `<button class="type ${d.type==='trail'?'on':''}" style="--c:var(${TYPES.trail.color})" onclick="setKind('trail')" title="${typeDesc('trail')}">
+        <div class="tn">${typeLabel('trail')}</div></button>
+      <button class="type race ${isRace?'on':''}" style="--c:var(${TYPES.race.color})" onclick="setKind('race')" title="${typeDesc('race')}">
         <div class="tn">${typeLabel('race')}</div></button>` : ''}
     </div>` : ''}
 
@@ -2116,6 +2139,7 @@ function raceDistSection(d){
   const isNew=S.sheet.editIndex==null;
   const rw=S.sheet.raceWarmup||{on:false,min:15}, rc=S.sheet.raceCooldown||{on:false,min:15};
   const strat=d.raceSplit||'negative';
+  const terrain=d.raceTerrain||'road';
   return `<div class="minilbl" style="margin:4px 0 8px">${t('raceDistanceLabel')}</div>
     <div class="distchips">
       ${RACE_DIST_CHIPS_KM.map(km=>`<button class="${d.raceDistM===Math.round(km*1000)?'on':''}" onclick="raceDistPick(${km})">${raceChipLabel(km)}</button>`).join('')}
@@ -2127,18 +2151,25 @@ function raceDistSection(d){
       <button onclick="raceDistStep(1)">+</button>
     </div>
 
+    <div class="minilbl" style="margin:15px 0 8px">${t('raceTerrainLabel')}</div>
+    <div class="toggle" style="margin-bottom:15px">
+      <button class="${terrain==='road'?'on':''}" onclick="setRaceTerrain('road')">${t('roadRace')}</button>
+      <button class="${terrain==='trail'?'on':''}" onclick="setRaceTerrain('trail')">${t('trailRace')}</button>
+    </div>
+
     <div class="field" style="margin-top:15px">
       <label>${t('raceTargetLabel')}</label>
       <input class="mono" dir="ltr" value="${d.raceTargetSec?mmss(d.raceTargetSec):''}" placeholder="50:00"
         oninput="raceTargetInput(this.value)">
     </div>
-    <div class="minilbl" style="margin-bottom:8px">${t('splitStrategyLabel')}</div>
+    ${terrain==='road'? `<div class="minilbl" style="margin-bottom:8px">${t('splitStrategyLabel')}</div>
     <div class="toggle" style="margin-bottom:${d.raceTargetSec?'15px':'6px'}">
       <button class="${strat==='negative'?'on':''}" onclick="setRaceSplit('negative')">${t('negativeSplit')}</button>
       <button class="${strat==='even'?'on':''}" onclick="setRaceSplit('even')">${t('evenSplit')}</button>
       <button class="${strat==='positive'?'on':''}" onclick="setRaceSplit('positive')">${t('positiveSplit')}</button>
     </div>
-    ${!d.raceTargetSec? `<div class="minilbl" style="text-transform:none; letter-spacing:normal; margin-bottom:15px">${t('splitNeedsTargetHint')}</div>` : ''}
+    ${!d.raceTargetSec? `<div class="minilbl" style="text-transform:none; letter-spacing:normal; margin-bottom:15px">${t('splitNeedsTargetHint')}</div>` : ''}`
+    : `<div class="note" style="margin:-3px 0 15px">${t('trailRacePlanHint')}</div>`}
     ${isNew? `
     <div class="field" style="margin-bottom:11px">
       <div class="fieldhead"><label>${t('raceIncludeWarmup')}</label>
@@ -2153,7 +2184,8 @@ function raceDistSection(d){
 }
 function regenRaceBlocks(d){
   const km=d.raceDistM/1000;
-  d.blocks = d.raceTargetSec? buildTargetSplits(km, d.raceTargetSec, d.raceSplit||'negative')
+  d.blocks = d.raceTerrain==='trail' && d.raceTargetSec ? [{kind:'steady', mode:'time', value:d.raceTargetSec}]
+    : d.raceTargetSec? buildTargetSplits(km, d.raceTargetSec, d.raceSplit||'negative')
     : [{kind:'steady', mode:'dist', value:d.raceDistM}];
 }
 /* strength workouts are sets-of-reps, not time/distance - kept in d.exercises
@@ -2286,6 +2318,7 @@ function raceDistStep(dir){ const d=S.sheet.draft; const step=d.raceDistM>=1000?
 function raceDistInput(v){ const d=S.sheet.draft; d.raceDistM=parseDistInput(v); regenRaceBlocks(d); render(); }
 function raceTargetInput(v){ const d=S.sheet.draft; d.raceTargetSec=parseTargetTime(v)||null; regenRaceBlocks(d); render(); }
 function setRaceSplit(k){ const d=S.sheet.draft; d.raceSplit=k; regenRaceBlocks(d); render(); }
+function setRaceTerrain(terrain){ const d=S.sheet.draft; d.raceTerrain=terrain; regenRaceBlocks(d); render(); }
 function segEditor(seg,i,which,sport){
   // yoga has no meaningful distance - skip the toggle entirely instead of just
   // defaulting to time, so there's nothing suggesting otherwise
@@ -2534,6 +2567,7 @@ function racesSheet(){
             <div class="racemeta">
               <span class="mono">${fmtRaceDate(r.date)}</span>
               ${r.km? `<span class="racedist mono">${r.km} ${t('kmShort')}</span>` : ''}
+              ${r.terrain==='trail'? `<span class="racedist">${t('trailRace')}</span>` : ''}
             </div>
             <div class="raceactions">
               <div class="racelinks">
@@ -2563,15 +2597,21 @@ function racesSheet(){
         oninput="raceDraftDistInput(this.value)" onkeydown="commitOnEnter(event)">
       <button onclick="raceDraftDistStep(1)">+</button>
     </div>
+    <div class="minilbl" style="margin:15px 0 8px">${t('raceTerrainLabel')}</div>
+    <div class="toggle" style="margin-bottom:15px">
+      <button class="${(rd.terrain||'road')==='road'?'on':''}" onclick="raceDraftField('terrain','road');render()">${t('roadRace')}</button>
+      <button class="${rd.terrain==='trail'?'on':''}" onclick="raceDraftField('terrain','trail');render()">${t('trailRace')}</button>
+    </div>
     <div class="field" style="margin-top:15px"><label>${t('raceTargetLabel')}</label>
       <input class="mono" dir="ltr" value="${rd.target||''}" placeholder="50:00" oninput="raceDraftField('target',this.value)"></div>
-    <div class="minilbl" style="margin-bottom:8px">${t('splitStrategyLabel')}</div>
+    ${(rd.terrain||'road')==='road'? `<div class="minilbl" style="margin-bottom:8px">${t('splitStrategyLabel')}</div>
     <div class="toggle" style="margin-bottom:${rd.target?'15px':'6px'}">
       <button class="${(rd.split||'negative')==='negative'?'on':''}" onclick="raceDraftSplit('negative')">${t('negativeSplit')}</button>
       <button class="${rd.split==='even'?'on':''}" onclick="raceDraftSplit('even')">${t('evenSplit')}</button>
       <button class="${rd.split==='positive'?'on':''}" onclick="raceDraftSplit('positive')">${t('positiveSplit')}</button>
     </div>
-    ${!rd.target? `<div class="minilbl" style="text-transform:none; letter-spacing:normal; margin-bottom:15px">${t('splitNeedsTargetHint')}</div>` : ''}
+    ${!rd.target? `<div class="minilbl" style="text-transform:none; letter-spacing:normal; margin-bottom:15px">${t('splitNeedsTargetHint')}</div>` : ''}`
+    : `<div class="note" style="margin:-3px 0 15px">${t('trailRacePlanHint')}</div>`}
     <button class="addblk" style="margin-bottom:0" onclick="addRace()">${S.sheet.editingRaceId? t('updateRace') : t('addRace')}</button>
     ${S.sheet.editingRaceId? `<button class="ghost" style="margin-top:9px" onclick="cancelEditRace()">${t('cancel')}</button>` : ''}
 
@@ -2676,7 +2716,7 @@ async function disconnectGarmin(){
 }
 function togglePhotoMenu(){ S.sheet.photoMenuOpen=!S.sheet.photoMenuOpen; render(); }
 function openZones(){ if(S.sheet && S.sheet.mode==='zones') return; S.sheet={mode:'zones'}; render(); }
-function openRaces(){ if(S.sheet && S.sheet.mode==='races') return; S.sheet={mode:'races', raceDraft:{date:'',name:'',km:'',target:'',split:'negative'}}; render(); }
+function openRaces(){ if(S.sheet && S.sheet.mode==='races') return; S.sheet={mode:'races', raceDraft:{date:'',name:'',km:'',target:'',split:'negative',terrain:'road'}}; render(); }
 function backToProfile(){ save(); S.sheet={mode:'profile'}; render(); }
 function backFromRaces(){
   // "+ Add race" is a separate action from the main add button - if the user
@@ -2845,30 +2885,30 @@ function addRace(){
       S.plan[old.date]=S.plan[old.date].filter(w=>w.raceId!==editingId);
       if(!S.plan[old.date].length) delete S.plan[old.date];
     }
-    const race={id:editingId, date:d.date, name:d.name, km:parseFloat(d.km)||0, targetSec:parseTargetTime(d.target)||null, split:d.split||'negative'};
+    const race={id:editingId, date:d.date, name:d.name, km:parseFloat(d.km)||0, targetSec:parseTargetTime(d.target)||null, split:d.split||'negative', terrain:d.terrain||'road'};
     S.profile.races=S.profile.races.map(r=>r.id===editingId? race : r);
     try{ syncRaceWorkout(race); }
     catch(e){ console.error('syncRaceWorkout failed', e); }
   } else {
-    const race={id:uid(), date:d.date, name:d.name, km:parseFloat(d.km)||0, targetSec:parseTargetTime(d.target)||null, split:d.split||'negative'};
+    const race={id:uid(), date:d.date, name:d.name, km:parseFloat(d.km)||0, targetSec:parseTargetTime(d.target)||null, split:d.split||'negative', terrain:d.terrain||'road'};
     S.profile.races.push(race);
     try{ syncRaceWorkout(race); }
     catch(e){ console.error('syncRaceWorkout failed', e); } // race itself is already pushed - still save it below
   }
   S.sheet.editingRaceId=null;
-  S.sheet.raceDraft={date:'',name:'',km:'',target:'',split:'negative'};
+  S.sheet.raceDraft={date:'',name:'',km:'',target:'',split:'negative',terrain:'road'};
   save(); render();
 }
 function editRace(id){
   const race=(S.profile.races||[]).find(r=>r.id===id);
   if(!race) return;
   S.sheet.raceDraft={date:race.date, name:race.name, km:race.km?String(race.km):'',
-    target:race.targetSec?mmss(race.targetSec):'', split:race.split||'negative'};
+    target:race.targetSec?mmss(race.targetSec):'', split:race.split||'negative', terrain:race.terrain||'road'};
   S.sheet.editingRaceId=id;
   render();
 }
 function cancelEditRace(){
-  S.sheet.raceDraft={date:'',name:'',km:'',target:'',split:'negative'};
+  S.sheet.raceDraft={date:'',name:'',km:'',target:'',split:'negative',terrain:'road'};
   S.sheet.editingRaceId=null;
   render();
 }
