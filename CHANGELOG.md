@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.78 - 2026-09-12 12:49 - Add full training roadmap for upcoming races
+
 ## v1.0.77 - 2026-09-12 12:43 - Fix day swipe direction by language
 
 ## v1.0.76 - 2026-09-12 12:36 - Fix settings drawer flicker and clarify trail race planning

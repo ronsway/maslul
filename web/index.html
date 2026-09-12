@@ -156,6 +156,26 @@
   .statsbars .fill{width:100%; background:linear-gradient(180deg,var(--warm),var(--work));}
   .statsbars .wk{font-size:8px; color:var(--muted2); margin-top:5px; writing-mode:horizontal-tb;}
 
+  /* ---- season roadmap ---- */
+  .roadintro{margin:-4px 0 14px;}
+  .roadmaprace{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:14px; margin-bottom:14px;}
+  .roadmaphead{display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:10px;}
+  .roadmapname{font-family:'Rubik'; font-weight:800; font-size:16px;}
+  .roadmapmeta{display:flex; flex-wrap:wrap; gap:6px; color:var(--muted); font-size:12px; margin-top:4px;}
+  .roadtag{background:var(--panel2); border:1px solid var(--line); border-radius:99px; padding:3px 8px; color:var(--txt); font-weight:700; white-space:nowrap;}
+  .roadstages{display:flex; flex-direction:column; gap:0; margin-top:12px;}
+  .roadstage{position:relative; padding:0 0 15px 25px; min-height:58px;}
+  .roadstage:last-child{padding-bottom:0;}
+  .roadstage::before{content:''; position:absolute; inset-inline-start:7px; top:17px; bottom:-1px; width:2px; background:var(--line);}
+  .roadstage:last-child::before{display:none;}
+  .roadmarker{position:absolute; inset-inline-start:0; top:3px; width:16px; height:16px; border-radius:50%; background:var(--panel2); border:3px solid var(--easy);}
+  .roadstage.build .roadmarker{border-color:var(--work);}
+  .roadstage.peak .roadmarker{border-color:var(--warm);}
+  .roadstage.race .roadmarker{border-color:var(--rec); background:var(--rec);}
+  .roadtitle{font-family:'Rubik'; font-size:14px; font-weight:800;}
+  .roaddates{font-family:'JetBrains Mono'; font-size:10.5px; color:var(--muted); margin-top:1px;}
+  .roaddesc{font-size:12px; color:var(--muted); line-height:1.4; margin-top:3px;}
+
   /* ---- jump-to-date calendar ---- */
   .calnav{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;}
   .caltitle{font-weight:700; font-size:16px; padding:6px 12px; border-radius:10px;}
@@ -737,6 +757,20 @@ const T={
   monthAvgPace:{he:'קצב ממוצע', en:'avg pace'},
   weeklyTrend:{he:'מגמה שבועית (12 שבועות אחרונים)', en:'Weekly trend (last 12 weeks)'},
   statsLegend:{he:'גובה העמודה = נפח מתוכנן, החלק המלא = מה שבוצע בפועל.', en:'Bar height = planned volume, the filled part = what was actually completed.'},
+  roadmapTitle:{he:'תכנית ההכנה', en:'Training plan'},
+  roadmapIntro:{he:'מפת הדרך עד למרוצים שלך. הימים המדויקים נשארים גמישים, אבל העומס והמיקוד בכל שלב נשמרים.', en:'Your roadmap to upcoming races. Exact days stay flexible, while each phase keeps its training focus.'},
+  roadmapNoRaces:{he:'הוסף מרוץ כדי לבנות תכנית הכנה מלאה עד אליו.', en:'Add a race to build a full preparation roadmap.'},
+  roadmapPriority:{he:'המרוץ הקרוב הוא היעד הראשי. לאחריו התכנית ממשיכה ליעד הבא.', en:'The nearest race is the primary goal. After it, the plan continues toward the next one.'},
+  roadmapWeeks:{he:'שבועות', en:'weeks'},
+  roadmapRaceDay:{he:'יום המרוץ', en:'Race day'},
+  roadBase:{he:'בסיס ותנועה', en:'Base & consistency'},
+  roadBuild:{he:'בנייה ספציפית', en:'Race-specific build'},
+  roadPeak:{he:'חידוד וקצב מרוץ', en:'Peak & race pace'},
+  roadRace:{he:'הורדת עומס ומרוץ', en:'Taper & race'},
+  trailBase:{he:'בסיס שטח וזמן על הרגליים', en:'Trail base & time on feet'},
+  trailBuild:{he:'עליות, ירידות ושטח טכני', en:'Climbing, descents & technical terrain'},
+  trailPeak:{he:'ספציפיות למסלול המרוץ', en:'Race-course specificity'},
+  trailRacePhase:{he:'הורדת עומס ומרוץ שטח', en:'Taper & trail race'},
   autoGenerate:{he:'צור שבוע אוטומטית', en:'Auto-generate week'},
   genConfigTitle:{he:'תכנון השבוע', en:'Plan the week'},
   pickDaysLabel:{he:'באילו ימים תרצה להתאמן השבוע?', en:'Which days do you want to train this week?'},
@@ -1621,6 +1655,9 @@ function render(){
       <button class="langbtn" onclick="openRaces()" aria-label="${t('racesTitle')}" title="${t('racesTitle')}">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V4"/><path d="M4 4h11l-2 4 2 4H4"/></svg>
       </button>
+      <button class="langbtn" onclick="openRoadmap()" aria-label="${t('roadmapTitle')}" title="${t('roadmapTitle')}">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 5h5l2 5h5"/><path d="M5 7v10h5l2-5h5"/></svg>
+      </button>
       <button class="langbtn" onclick="openStats()" aria-label="${t('statsTitle')}" title="${t('statsTitle')}">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg>
       </button>
@@ -1783,11 +1820,13 @@ function renderSheet(){
   if(S.sheet.mode==='races') return racesSheet();
   if(S.sheet.mode==='generate') return S.sheet.step==='preview'? generatePreviewSheet() : generateConfigSheet();
   if(S.sheet.mode==='stats') return statsSheet();
+  if(S.sheet.mode==='roadmap') return roadmapSheet();
   if(S.sheet.mode==='datejump') return dateJumpSheet();
   if(S.sheet.mode==='run') return runSheet();
   return `<div class="scrim"></div>`;
 }
 function openStats(){ if(S.sheet && S.sheet.mode==='stats') return; S.sheet={mode:'stats'}; render(); }
+function openRoadmap(){ if(S.sheet && S.sheet.mode==='roadmap') return; S.sheet={mode:'roadmap'}; render(); }
 function openRunDetail(idx){
   S.sheet={mode:'run', idx, splits:null, splitsLoading:false, splitsError:null};
   render();
@@ -1842,6 +1881,75 @@ function statsSheet(){
     <div class="note" style="margin-top:10px">${t('statsLegend')}</div>
 
     <button class="ghost" onclick="closeSheet()" style="margin-top:16px">${t('close')}</button>
+  </div></div>`;
+}
+
+/* A roadmap is deliberately separate from the weekly scheduler: it communicates
+   the season's intent and progression without pretending that future weekdays
+   are fixed. The nearest goal gets priority, while later races remain visible
+   as their own follow-on blocks. */
+const ROADMAP_GUIDE={
+  road:{
+    base:{he:'בנה רצף ונפח קל. ריצה ארוכה נינוחה, תרגילי כוח והתאוששות.', en:'Build consistency and easy volume. Keep a relaxed long run, strength and recovery.'},
+    build:{he:'הוסף טמפו ואינטרוולים מבוקרים לצד ריצה ארוכה.', en:'Add controlled tempo and intervals alongside the long run.'},
+    peak:{he:'חדד עם קצב מרוץ ונפח איכותי, בלי להעמיס יותר מדי.', en:'Sharpen with race pace and quality volume without adding excess load.'},
+    race:{he:'הפחת נפח, שמור על רגליים רעננות ובצע את תכנית הקצב.', en:'Reduce volume, keep the legs fresh and follow the pacing plan.'},
+  },
+  trail:{
+    base:{he:'ריצות שטח לפי זמן, הליכה בעליות וזמן על הרגליים.', en:'Trail running by time, uphill hiking and time on feet.'},
+    build:{he:'חזרות עליות, ירידות מבוקרות וריצות ארוכות בשטח דומה.', en:'Hill repeats, controlled descents and long runs on similar terrain.'},
+    peak:{he:'תרגל גובה מצטבר, ציוד ותזונה בתנאי שטח קרובים למרוץ.', en:'Rehearse elevation, gear and fueling in terrain close to race day.'},
+    race:{he:'הורד עומס, בדוק ציוד, ורוץ לפי מאמץ ולא לפי קצב קבוע.', en:'Taper, check gear, and race by effort rather than a fixed pace.'},
+  },
+};
+function addDays(date,n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
+function roadmapRange(start,end){ return `${fmtRaceDate(ymd(start))}–${fmtRaceDate(ymd(end))}`; }
+function roadmapStages(race){
+  const until=Math.max(0,daysUntil(race.date));
+  const weeks=Math.ceil(until/7);
+  const counts={base:Math.max(0,weeks-8), build:Math.max(0,Math.min(5,weeks-3)), peak:Math.min(3,weeks)};
+  const terrain=race.terrain==='trail'?'trail':'road';
+  const labels=terrain==='trail'
+    ? {base:'trailBase',build:'trailBuild',peak:'trailPeak',race:'trailRacePhase'}
+    : {base:'roadBase',build:'roadBuild',peak:'roadPeak',race:'roadRace'};
+  const now=new Date(); now.setHours(0,0,0,0);
+  let cursor=now;
+  const stages=[];
+  ['base','build','peak'].forEach(key=>{
+    if(!counts[key]) return;
+    const end=new Date(Math.min(addDays(cursor,counts[key]*7-1).getTime(), new Date(race.date+'T00:00:00').getTime()-86400000));
+    stages.push({key,title:t(labels[key]), dates:roadmapRange(cursor,end), desc:ROADMAP_GUIDE[terrain][key], weeks:counts[key]});
+    cursor=addDays(end,1);
+  });
+  stages.push({key:'race',title:t(labels.race),dates:fmtRaceDate(race.date),desc:ROADMAP_GUIDE[terrain].race,weeks:0});
+  return stages;
+}
+function roadmapRaceCard(race,primary){
+  const terrain=race.terrain==='trail'?'trail':'road';
+  const days=Math.max(0,daysUntil(race.date));
+  const stages=roadmapStages(race);
+  return `<div class="roadmaprace">
+    <div class="roadmaphead">
+      <div><div class="roadmapname">${race.name}</div>
+        <div class="roadmapmeta"><span class="mono">${fmtRaceDate(race.date)}</span>${race.km?`<span>${race.km} ${t('kmShort')}</span>`:''}<span class="roadtag">${t(terrain==='trail'?'trailRace':'roadRace')}</span></div>
+      </div>
+      <span class="roadtag mono">${days} ${t('daysWord')}</span>
+    </div>
+    ${primary?`<div class="note">${t('roadmapPriority')}</div>`:''}
+    <div class="roadstages">${stages.map(s=>`<div class="roadstage ${s.key}">
+      <span class="roadmarker"></span><div class="roadtitle">${s.title}${s.weeks?` · ${s.weeks} ${t('roadmapWeeks')}`:''}</div>
+      <div class="roaddates">${s.dates}</div><div class="roaddesc">${s.desc[S.lang]}</div>
+    </div>`).join('')}</div>
+  </div>`;
+}
+function roadmapSheet(){
+  const today=ymd(new Date());
+  const races=(S.profile.races||[]).filter(r=>r.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
+  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet${sheetEntering()}">
+    <div class="grab"></div><h2 class="disp">${t('roadmapTitle')}</h2>
+    <div class="note roadintro">${t('roadmapIntro')}</div>
+    ${races.length?races.map((r,i)=>roadmapRaceCard(r,i===0)).join(''):`<div class="note">${t('roadmapNoRaces')}</div>`}
+    <button class="ghost" onclick="closeSheet()">${t('close')}</button>
   </div></div>`;
 }
 
