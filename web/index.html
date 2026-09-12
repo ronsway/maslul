@@ -2733,10 +2733,13 @@ function zonesSheet(){
   </div></div>`;
 }
 
-/* Upcoming races are a focused pop-up, rather than a settings-style side panel. */
+/* Upcoming races are a focused pop-up, rather than a settings-style side panel.
+   The list and the add/edit form are two separate views within it (not stacked
+   together) - mixing them used to force scrolling past every race to reach the
+   form, and made closing the popup silently save whatever was half-typed. */
 function racesSheet(){
-  const p=S.profile; const rd=S.sheet.raceDraft;
-  const rdKm=parseFloat(rd.km)||0;
+  if(S.sheet.view==='form') return raceFormSheet();
+  const p=S.profile;
   const races=(p.races||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
   return `<div class="scrim on center" onclick="if(event.target===this)closeSheet()"><div class="sheet dialog racesdialog${sheetEntering()}">
     <div class="grab"></div>
@@ -2760,7 +2763,7 @@ function racesSheet(){
                 <a class="raceiconbtn" target="_blank" rel="noopener" href="https://www.google.com/search?q=${encodeURIComponent(r.name+' '+r.date.slice(0,4))}" title="${t('searchRaceInfo')}" aria-label="${t('searchRaceInfo')}">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
                 </a>
-                <button class="raceiconbtn" onclick="editRace('${r.id}')" title="${t('edit')}" aria-label="${t('edit')}">
+                <button class="raceiconbtn" onclick="openRaceForm('${r.id}')" title="${t('edit')}" aria-label="${t('edit')}">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                 </button>
               </div>
@@ -2770,7 +2773,19 @@ function racesSheet(){
         </div>`;
       }).join('')
       : `<div class="note" style="margin-bottom:10px">${t('noRaces')}</div>`}
-    <div class="minilbl" style="margin-bottom:8px">${S.sheet.editingRaceId? t('raceFormEdit') : t('raceFormNew')}</div>
+    <button class="addblk" style="margin-bottom:0" onclick="openRaceForm(null)">${t('addRace')}</button>
+
+    <div class="drawersec">
+      <button class="ghost" onclick="closeSheet()">${t('close')}</button>
+    </div>
+  </div></div>`;
+}
+function raceFormSheet(){
+  const rd=S.sheet.raceDraft;
+  const rdKm=parseFloat(rd.km)||0;
+  return `<div class="scrim on center" onclick="if(event.target===this)closeSheet()"><div class="sheet dialog racesdialog${sheetEntering()}">
+    <div class="backrow"><button onclick="backFromRaceForm()">${backArrow()} ${t('backWord')}</button></div>
+    <h2 class="disp">${S.sheet.editingRaceId? t('raceFormEdit') : t('raceFormNew')}</h2>
     <div class="field"><label>${t('raceName')}</label><input value="${rd.name}" oninput="raceDraftField('name',this.value)"></div>
     <div class="field"><label>${t('raceDate')}</label><input class="mono" dir="ltr" type="date" value="${rd.date}" oninput="raceDraftField('date',this.value)"></div>
     <div class="minilbl" style="margin:4px 0 8px">${t('raceDistanceLabel')}</div>
@@ -2799,11 +2814,6 @@ function racesSheet(){
     ${!rd.target? `<div class="minilbl" style="text-transform:none; letter-spacing:normal; margin-bottom:15px">${t('splitNeedsTargetHint')}</div>` : ''}`
     : `<div class="note" style="margin:-3px 0 15px">${t('trailRacePlanHint')}</div>`}
     <button class="addblk" style="margin-bottom:0" onclick="addRace()">${S.sheet.editingRaceId? t('updateRace') : t('addRace')}</button>
-    ${S.sheet.editingRaceId? `<button class="ghost" style="margin-top:9px" onclick="cancelEditRace()">${t('cancel')}</button>` : ''}
-
-    <div class="drawersec">
-      <button class="ghost" onclick="backFromRaces()">${t('close')}</button>
-    </div>
   </div></div>`;
 }
 
@@ -2902,16 +2912,8 @@ async function disconnectGarmin(){
 }
 function togglePhotoMenu(){ S.sheet.photoMenuOpen=!S.sheet.photoMenuOpen; render(); }
 function openZones(){ if(S.sheet && S.sheet.mode==='zones') return; S.sheet={mode:'zones'}; render(); }
-function openRaces(){ if(S.sheet && S.sheet.mode==='races') return; S.sheet={mode:'races', raceDraft:{date:'',name:'',km:'',target:'',split:'negative',terrain:'road'}}; render(); }
+function openRaces(){ if(S.sheet && S.sheet.mode==='races') return; S.sheet={mode:'races', view:'list', raceDraft:{date:'',name:'',km:'',target:'',split:'negative',terrain:'road'}}; render(); }
 function backToProfile(){ save(); S.sheet={mode:'profile'}; render(); }
-function backFromRaces(){
-  // "+ Add race" is a separate action from the main add button - if the user
-  // filled in a race but never tapped it, closing used to silently discard that
-  // draft (it only ever lived in S.sheet, which gets thrown away on close).
-  const d=S.sheet && S.sheet.raceDraft;
-  if(d && d.date && d.name) addRace();
-  closeSheet();
-}
 function saveProfile(){
   save(); closeSheet();
 }
@@ -3083,19 +3085,27 @@ function addRace(){
   }
   S.sheet.editingRaceId=null;
   S.sheet.raceDraft={date:'',name:'',km:'',target:'',split:'negative',terrain:'road'};
+  S.sheet.view='list';
   save(); render();
 }
-function editRace(id){
-  const race=(S.profile.races||[]).find(r=>r.id===id);
-  if(!race) return;
-  S.sheet.raceDraft={date:race.date, name:race.name, km:race.km?String(race.km):'',
-    target:race.targetSec?mmss(race.targetSec):'', split:race.split||'negative', terrain:race.terrain||'road'};
-  S.sheet.editingRaceId=id;
+function openRaceForm(id){
+  if(id){
+    const race=(S.profile.races||[]).find(r=>r.id===id);
+    if(!race) return;
+    S.sheet.raceDraft={date:race.date, name:race.name, km:race.km?String(race.km):'',
+      target:race.targetSec?mmss(race.targetSec):'', split:race.split||'negative', terrain:race.terrain||'road'};
+    S.sheet.editingRaceId=id;
+  } else {
+    S.sheet.raceDraft={date:'',name:'',km:'',target:'',split:'negative',terrain:'road'};
+    S.sheet.editingRaceId=null;
+  }
+  S.sheet.view='form';
   render();
 }
-function cancelEditRace(){
+function backFromRaceForm(){
   S.sheet.raceDraft={date:'',name:'',km:'',target:'',split:'negative',terrain:'road'};
   S.sheet.editingRaceId=null;
+  S.sheet.view='list';
   render();
 }
 function delRace(id){
@@ -3105,7 +3115,7 @@ function delRace(id){
     S.plan[race.date]=S.plan[race.date].filter(w=>w.raceId!==id);
     if(!S.plan[race.date].length) delete S.plan[race.date];
   }
-  if(S.sheet.editingRaceId===id) cancelEditRace();
+  if(S.sheet.editingRaceId===id){ S.sheet.editingRaceId=null; S.sheet.raceDraft={date:'',name:'',km:'',target:'',split:'negative',terrain:'road'}; }
   save(); render();
 }
 
