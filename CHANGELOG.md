@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.85 - 2026-09-13 12:55 - Move races plan and stats into the menu with a settings section recolor back to today button
+
 ## v1.0.84 - 2026-09-13 12:45 - Confirm before deleting a workout
 
 ## v1.0.83 - 2026-09-12 14:02 - Countdown week numbers on coach plan titles fix taper label and phantom week bugs
