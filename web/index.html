@@ -258,7 +258,7 @@
      tall repeat-block editor -> tempo's single segment) shrank the sheet
      from the bottom-anchored side, so the visible top edge shifted down each
      time - jarring on every sport/kind switch, not just a scroll issue. */
-  .sheet{width:100%; max-width:520px; margin-top:8vh; max-height:92vh; overflow-y:auto; background:var(--ink);
+  .sheet{position:relative; width:100%; max-width:520px; margin-top:8vh; max-height:92vh; overflow-y:auto; background:var(--ink);
     border-radius:22px 22px 0 0; border-top:1px solid var(--line); padding:8px 18px calc(24px + env(safe-area-inset-bottom));
     box-sizing:border-box;}
   /* animation only on first paint (.entering, set by sheetEntering()) - render()
@@ -269,9 +269,29 @@
   @supports (height: 100dvh){
     .sheet{margin-top:8dvh; max-height:92dvh;}
   }
+  /* a sheet short enough to not reach the viewport bottom (stats) would
+     otherwise expose the base .sheet's square bottom corners - round all
+     four instead, like a card rather than a bottom sheet. */
+  .sheet.compact{border-radius:22px;}
+  /* a sheet with enough content to want the full height (roadmap's week
+     cards) - starts almost at the top instead of leaving the base .sheet's
+     8vh gap unused above it. */
+  .sheet.tall{margin-top:2vh; max-height:98vh;}
+  @supports (height: 100dvh){
+    .sheet.tall{margin-top:2dvh; max-height:98dvh;}
+  }
   .scrim.center{align-items:center;}
   .sheet.dialog{width:calc(100% - 32px); max-width:380px; border-radius:22px;
     border:1px solid var(--line); border-top:1px solid var(--line);}
+  /* a close button that's always reachable regardless of scroll position needs
+     to sit outside the scrolling box entirely, not just be positioned within
+     it (position:absolute/sticky both still scroll with an overflow:auto
+     ancestor's content - only a true flex-layout sibling avoids that): the
+     sheet becomes a column with a scrolling content pane and a fixed footer. */
+  .sheet.floatwrap{display:flex; flex-direction:column; overflow:hidden; padding:0;}
+  .floatscroll{overflow-y:auto; flex:1; min-height:0; padding:8px 18px calc(24px + env(safe-area-inset-bottom)); box-sizing:border-box;}
+  .floatclose{flex:none; background:var(--ink); padding:12px 18px calc(12px + env(safe-area-inset-bottom));
+    border-top:1px solid var(--line);}
   .sheet.dialog.entering{animation:dialogIn .18s ease;}
   @keyframes dialogIn{from{transform:scale(.96); opacity:0;} to{transform:scale(1); opacity:1;}}
   @keyframes up{from{transform:translateY(30px); opacity:.4;} to{transform:none; opacity:1;}}
@@ -1873,7 +1893,8 @@ function statsSheet(){
   const mo=monthStats();
   const pace=avgPaceThisMonth();
   const M=MONTHS_I18N[S.lang];
-  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet compact${sheetEntering()}">
+  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet compact floatwrap${sheetEntering()}">
+  <div class="floatscroll">
     <div class="grab"></div>
     <h2 class="disp">${t('statsTitle')}</h2>
 
@@ -1902,8 +1923,8 @@ function statsSheet(){
       }).join('')}
     </div>
     <div class="note" style="margin-top:10px">${t('statsLegend')}</div>
-
-    <button class="ghost" onclick="closeSheet()" style="margin-top:16px">${t('close')}</button>
+  </div>
+    <div class="floatclose"><button class="ghost" onclick="closeSheet()" style="margin:0">${t('close')}</button></div>
   </div></div>`;
 }
 
@@ -2035,11 +2056,13 @@ function roadmapSheet(){
   const today=ymd(new Date());
   const races=(S.profile.races||[]).filter(r=>r.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
   const weeks=races.length?coachPlanWeeks(races):[];
-  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet${sheetEntering()}">
+  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet tall floatwrap${sheetEntering()}">
+  <div class="floatscroll">
     <div class="grab"></div><h2 class="disp">${t('roadmapTitle')}</h2>
     <div class="note roadintro">${t('roadmapIntro')}</div>
     ${races.length?`<div class="note">${t('roadmapPriority')}</div>${weeks.map(coachWeekCard).join('')}`:`<div class="note">${t('roadmapNoRaces')}</div>`}
-    <button class="ghost" onclick="closeSheet()">${t('close')}</button>
+  </div>
+    <div class="floatclose"><button class="ghost" onclick="closeSheet()" style="margin:0">${t('close')}</button></div>
   </div></div>`;
 }
 
@@ -2840,7 +2863,8 @@ function racesSheet(){
   if(S.sheet.view==='form') return raceFormSheet();
   const p=S.profile;
   const races=(p.races||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
-  return `<div class="scrim on center" onclick="if(event.target===this)closeSheet()"><div class="sheet dialog racesdialog${sheetEntering()}">
+  return `<div class="scrim on center" onclick="if(event.target===this)closeSheet()"><div class="sheet dialog racesdialog floatwrap${sheetEntering()}">
+  <div class="floatscroll">
     <div class="grab"></div>
     <h2 class="disp">${t('racesTitle')}</h2>
     ${races.length? races.map(r=>{
@@ -2873,10 +2897,8 @@ function racesSheet(){
       }).join('')
       : `<div class="note" style="margin-bottom:10px">${t('noRaces')}</div>`}
     <button class="addblk" style="margin-bottom:0" onclick="openRaceForm(null)">${t('addRace')}</button>
-
-    <div class="drawersec">
-      <button class="ghost" onclick="closeSheet()">${t('close')}</button>
-    </div>
+  </div>
+    <div class="floatclose"><button class="ghost" onclick="closeSheet()" style="margin:0">${t('close')}</button></div>
   </div></div>`;
 }
 function raceFormSheet(){
