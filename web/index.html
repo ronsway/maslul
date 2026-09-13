@@ -706,6 +706,7 @@ const T={
   close:{he:'סגור', en:'Close'},
   profileTitle:{he:'תפריט', en:'Menu'},
   secSettingsGroup:{he:'הגדרות', en:'Settings'},
+  secAccountsGroup:{he:'חשבונות מקושרים', en:'Linked accounts'},
   roadmapMenuSub:{he:'תכנית שבועית לקראת המרוץ הבא', en:'Weekly plan toward your next race'},
   statsMenuSub:{he:'מגמות ונפח לאורך זמן', en:'Trends and volume over time'},
   secProfile:{he:'פרופיל', en:'Profile'},
@@ -1837,6 +1838,7 @@ function renderSheet(){
   if(S.sheet.mode==='datejump') return dateJumpSheet();
   if(S.sheet.mode==='run') return runSheet();
   if(S.sheet.mode==='confirmDelWorkout') return confirmDelWorkoutSheet();
+  if(S.sheet.mode==='accounts') return accountsSheet();
   return `<div class="scrim"></div>`;
 }
 function openStats(){ if(S.sheet && S.sheet.mode==='stats') return; S.sheet={mode:'stats'}; render(); }
@@ -2644,6 +2646,23 @@ function garminSectionHTML(){
     ${formHTML}
   </div>`;
 }
+function accountsSheet(){
+  const side=S.lang==='he'?'side-right':'side-left';
+  const closing=S.sheet.closing?' closing':'';
+  const entering=sheetEntering();
+  return `<div class="drawerscrim${entering}${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${entering}${closing}">
+    <div class="backrow"><button onclick="backToProfile()">${backArrow()} ${t('backWord')}</button></div>
+    <h2 class="disp">${t('secAccountsGroup')}</h2>
+
+    <div class="drawersec" style="margin-top:0; border-top:none; padding-top:0">
+      <div class="minilbl">${t('secAccount')}</div>
+      <div class="note">${t('connectedAs')}${AUTH.session?.user?.email||''}${t('syncNote')}</div>
+      <button class="ghost signout" onclick="signOut()">${t('signOut')}</button>
+    </div>
+
+    ${garminSectionHTML()}
+  </div></div>`;
+}
 function profileSheet(){
   const p=S.profile;
   const googleAvatar=AUTH.session?.user?.user_metadata?.avatar_url||AUTH.session?.user?.user_metadata?.picture||'';
@@ -2728,12 +2747,12 @@ function profileSheet(){
       </div>
     </div>
 
-    ${garminSectionHTML()}
-
     <div class="drawersec">
-      <div class="minilbl">${t('secAccount')}</div>
-      <div class="note">${t('connectedAs')}${AUTH.session?.user?.email||''}${t('syncNote')}</div>
-      <button class="ghost signout" onclick="signOut()">${t('signOut')}</button>
+      <button class="navrow" style="margin-bottom:0" onclick="openAccounts()">
+        <div><div class="nrt">${t('secAccountsGroup')}</div>
+          <div class="nrs">${AUTH.session?.user?.email||''}</div></div>
+        <span class="nrarrow">${drillArrow()}</span>
+      </button>
     </div>
 
     <div class="drawersec">
@@ -2898,7 +2917,16 @@ function dateJumpPick(dateStr){
 // would restart its entrance animation and look like the sheet opened twice.
 function openProfile(){
   if(S.sheet && S.sheet.mode==='profile') return;
-  S.sheet={mode:'profile', photoMenuOpen:false, garminStatus:null, garminForm:null};
+  S.sheet={mode:'profile', photoMenuOpen:false};
+  render();
+}
+/* Garmin connection + Google/email account, pulled out of the main menu into
+   their own popup (Menu > Linked accounts) rather than sitting inline in the
+   settings list - both are "sign in to something else" actions, distinct
+   from the app's own preferences. */
+function openAccounts(){
+  if(S.sheet && S.sheet.mode==='accounts') return;
+  S.sheet={mode:'accounts', garminStatus:null, garminForm:null};
   render();
   loadGarminStatus();
 }
@@ -2908,7 +2936,7 @@ async function loadGarminStatus(){
   try{
     const r=await fetch(`${BACKEND_BASE}/garmin/status`,{headers:authHeaders()});
     const data=await r.json();
-    if(!S.sheet || S.sheet.mode!=='profile') return; // sheet closed before this resolved
+    if(!S.sheet || S.sheet.mode!=='accounts') return; // sheet closed before this resolved
     S.sheet.garminStatus=data; render();
   }catch(e){ /* leave status as "checking" - not critical, user can retry by reopening */ }
 }
