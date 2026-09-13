@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.92 - 2026-09-13 13:36 - Start workout editor and week generator popups higher with rounded corners
+
 ## v1.0.91 - 2026-09-13 13:30 - Round the training plan popup bottom corners too
 
 ## v1.0.90 - 2026-09-13 13:23 - Fix training plan stats and races popups floating close button and rounded corners
