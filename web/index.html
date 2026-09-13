@@ -1715,13 +1715,13 @@ function render(){
   </div>
 
   <div style="padding:0 18px 4px">
-    <button class="addbtn" onclick="openGenerate()"><span class="p">✨</span> ${t('autoGenerate')}</button>
+    <button class="addbtn" onclick="openEditor()"><span class="p">+</span> ${t('addWorkout')}</button>
+    ${dayHasWorkouts?`<button class="addbtn" style="margin-top:8px" onclick="openSendDay()">${t('sendThisDay')}</button>`:''}
   </div>
 
   <div class="detail">
     ${renderDay(selDate)}
-    <button class="addbtn" onclick="openEditor()"><span class="p">+</span> ${t('addWorkout')}</button>
-    ${dayHasWorkouts?`<button class="addbtn" style="margin-top:8px" onclick="openSendDay()">${t('sendThisDay')}</button>`:''}
+    <button class="addbtn" onclick="openGenerate()"><span class="p">✨</span> ${t('autoGenerate')}</button>
   </div>
 
   <div class="sendbar">
