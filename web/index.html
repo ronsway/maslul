@@ -274,9 +274,11 @@
      four instead, like a card rather than a bottom sheet. */
   .sheet.compact{border-radius:22px;}
   /* a sheet with enough content to want the full height (roadmap's week
-     cards) - starts almost at the top instead of leaving the base .sheet's
-     8vh gap unused above it. */
-  .sheet.tall{margin-top:2vh; max-height:98vh;}
+     cards, the workout editor, the week auto-generate flow) - starts almost
+     at the top instead of leaving the base .sheet's 8vh gap unused above it,
+     and rounds the bottom corners like .compact/.dialog rather than keeping
+     the base sheet's bottom-flush-with-viewport assumption. */
+  .sheet.tall{margin-top:2vh; max-height:98vh; border-radius:22px;}
   @supports (height: 100dvh){
     .sheet.tall{margin-top:2dvh; max-height:98dvh;}
   }
@@ -2217,7 +2219,7 @@ function runSheet(){
 /* generate sheet */
 function generateConfigSheet(){
   const days=S.sheet.days;
-  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet${sheetEntering()}">
+  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet tall${sheetEntering()}">
     <div class="grab"></div>
     <h2 class="disp">${t('genConfigTitle')}</h2>
     <div class="note" style="margin-bottom:16px">${genContextNote(S.offset)}</div>
@@ -2253,7 +2255,7 @@ function previewCard(dateStr,w){
 function generatePreviewSheet(){
   const prop=S.sheet.proposal;
   const dates=Object.keys(prop.plan).sort();
-  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet${sheetEntering()}">
+  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet tall${sheetEntering()}">
     <div class="grab"></div>
     <h2 class="disp">${t('genPreviewTitle')}</h2>
     <div class="note" style="margin-bottom:14px">${genContextNote(S.offset)}<br>${t('genOverwriteWarn')}${prop.skippedForRace?'<br>'+t('genSkippedRaceDay'):''}</div>
@@ -2270,7 +2272,7 @@ function editorSheet(){
   const isStrength=d.sport==='strength';
   const isCrossfit=d.sport==='crossfit';
   const isCardio=CARDIO_SPORTS.includes(d.sport);
-  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet${sheetEntering()}">
+  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet tall${sheetEntering()}">
     <div class="grab"></div>
     <h2 class="disp">${S.sheet.editIndex==null?t('newWorkout'):t('editWorkout')}</h2>
     <div class="minilbl" style="margin-bottom:8px">${t('typesSectionSport')}</div>
