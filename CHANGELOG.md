@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.84 - 2026-09-13 12:45 - Confirm before deleting a workout
+
 ## v1.0.83 - 2026-09-12 14:02 - Countdown week numbers on coach plan titles fix taper label and phantom week bugs
 
 ## v1.0.82 - 2026-09-12 13:48 - Revert Garmin needs_reauth change
