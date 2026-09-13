@@ -49,7 +49,7 @@
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0; padding:0; background:var(--ink); color:var(--txt);
     font-family:'Assistant',system-ui,sans-serif; overscroll-behavior-y:none;}
-  body{max-width:520px; margin:0 auto; min-height:100vh; padding-bottom:96px;}
+  body{max-width:520px; margin:0 auto; min-height:100vh;}
   .mono{font-family:'JetBrains Mono',monospace; direction:ltr; unicode-bidi:isolate;}
   .disp{font-family:'Rubik',sans-serif;}
   button{font-family:inherit; cursor:pointer; border:none; background:none; color:inherit;}
@@ -240,8 +240,7 @@
   .addbtn:active{background:var(--panel2);}
 
   /* ---- send bar ---- */
-  .sendbar{position:fixed; bottom:0; left:0; right:0; max-width:520px; margin:0 auto;
-    padding:12px 18px calc(12px + env(safe-area-inset-bottom)); background:linear-gradient(180deg,rgba(14,17,22,0),var(--ink) 34%);}
+  .sendbar{padding:16px 18px calc(16px + env(safe-area-inset-bottom));}
   .send{width:100%; padding:15px; border-radius:15px; font-family:'Rubik'; font-weight:800; font-size:16px;
     background:linear-gradient(135deg,var(--work),#ff7b45); color:#1a0d09;
     display:flex; align-items:center; justify-content:center; gap:9px; box-shadow:0 6px 22px rgba(255,90,60,.32);}
