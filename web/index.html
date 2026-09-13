@@ -275,12 +275,13 @@
   .sheet.compact{border-radius:22px;}
   /* a sheet with enough content to want the full height (roadmap's week
      cards, the workout editor, the week auto-generate flow) - starts almost
-     at the top instead of leaving the base .sheet's 8vh gap unused above it,
-     and rounds the bottom corners like .compact/.dialog rather than keeping
-     the base sheet's bottom-flush-with-viewport assumption. */
-  .sheet.tall{margin-top:2vh; max-height:98vh; border-radius:22px;}
+     at the top instead of leaving the base .sheet's 8vh gap unused above it.
+     Capped short of the viewport bottom (not 98vh) and rounded on all four
+     corners: flush against the bottom edge made the rounding look cut off
+     on long content, so a visible gap stays even when it's maxed out. */
+  .sheet.tall{margin-top:2vh; max-height:94vh; border-radius:22px;}
   @supports (height: 100dvh){
-    .sheet.tall{margin-top:2dvh; max-height:98dvh;}
+    .sheet.tall{margin-top:2dvh; max-height:94dvh;}
   }
   .scrim.center{align-items:center;}
   .sheet.dialog{width:calc(100% - 32px); max-width:380px; border-radius:22px;
