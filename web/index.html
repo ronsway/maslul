@@ -826,6 +826,11 @@ const T={
   coachWeekWord:{he:'שבוע', en:'Week'},
   coachRaceWeekWord:{he:'שבוע המרוץ', en:'Race week'},
   autoGenerate:{he:'צור שבוע אוטומטית', en:'Auto-generate week'},
+  duplicateWeek:{he:'שכפל שבוע קודם', en:'Duplicate last week'},
+  duplicateWeekConfirmTitle:{he:'שכפול השבוע הקודם', en:'Duplicate last week'},
+  duplicateWeekConfirmNote:{he:'האימונים מהשבוע הקודם יועתקו לשבוע הנוכחי, באותם ימים.', en:'Last week’s workouts will be copied onto the current week, on the same days.'},
+  duplicateWeekOverwriteNote:{he:'פעולה זו תחליף את האימונים הקיימים בשבוע הנוכחי.', en:'This will replace the workouts already on the current week.'},
+  duplicateWeekEmptyNote:{he:'לשבוע הקודם אין אימונים לשכפל', en:'Last week has no workouts to duplicate'},
   genConfigTitle:{he:'תכנון השבוע', en:'Plan the week'},
   pickDaysLabel:{he:'באילו ימים תרצה להתאמן השבוע?', en:'Which days do you want to train this week?'},
   suggestPlan:{he:'הצע תוכנית', en:'Suggest plan'},
@@ -1765,6 +1770,7 @@ function render(){
   <div class="detail">
     ${renderDay(selDate)}
     <button class="addbtn" onclick="openGenerate()"><span class="p">✨</span> ${t('autoGenerate')}</button>
+    <button class="addbtn" style="margin-top:6px" onclick="confirmDupWeek()"><span class="p">⧉</span> ${t('duplicateWeek')}</button>
   </div>
 
   <div class="sendbar">
@@ -1893,6 +1899,7 @@ function renderSheet(){
   if(S.sheet.mode==='datejump') return dateJumpSheet();
   if(S.sheet.mode==='run') return runSheet();
   if(S.sheet.mode==='confirmDelWorkout') return confirmDelWorkoutSheet();
+  if(S.sheet.mode==='confirmDupWeek') return dupWeekSheet();
   if(S.sheet.mode==='accounts') return accountsSheet();
   if(S.sheet.mode==='profileEdit') return profileEditSheet();
   if(S.sheet.mode==='prefs') return prefsSheet();
@@ -3483,6 +3490,49 @@ function confirmDelWorkoutSheet(){
 function toggleDone(idx){
   const date=ymd(weekDates(S.offset)[S.sel]);
   const w=S.plan[date][idx]; w.done=!w.done;
+  save(); render();
+}
+
+/* copies last week's plan onto the current week, day-for-day. Race-linked
+   workouts (raceId set) are skipped - a race is a specific date-bound event,
+   not something that makes sense duplicated a week forward, and it already
+   gets regenerated via Settings > Races if the date changes. */
+function confirmDupWeek(){
+  const prevWk=weekDates(S.offset-1);
+  if(!prevWk.some(d=>dayWorkouts(d).length)){ toast(t('duplicateWeekEmptyNote')); return; }
+  const willOverwrite=weekDates(S.offset).some(d=>dayWorkouts(d).length);
+  S.sheet={mode:'confirmDupWeek', willOverwrite};
+  render();
+}
+function dupWeekSheet(){
+  const {willOverwrite}=S.sheet;
+  return `<div class="scrim on center" onclick="if(event.target===this)closeSheet()"><div class="sheet compact dialog${sheetEntering()}">
+    <h2 class="disp">${t('duplicateWeekConfirmTitle')}</h2>
+    <div class="note" style="margin-bottom:${willOverwrite?'8px':'20px'}">${t('duplicateWeekConfirmNote')}</div>
+    ${willOverwrite? `<div class="note" style="color:var(--work); margin-bottom:20px">${t('duplicateWeekOverwriteNote')}</div>` : ''}
+    <div style="display:flex; gap:8px">
+      <button class="ghost" style="margin:0; flex:1" onclick="closeSheet()">${t('cancel')}</button>
+      <button class="primary disp" style="margin:0; flex:1" onclick="applyDupWeek();closeSheet()">${t('duplicateWeek')}</button>
+    </div>
+  </div></div>`;
+}
+function applyDupWeek(){
+  const prevWk=weekDates(S.offset-1), curWk=weekDates(S.offset);
+  prevWk.forEach((d,i)=>{
+    const destDate=ymd(curWk[i]);
+    const src=dayWorkouts(d).filter(w=>!w.raceId);
+    if(!src.length){ delete S.plan[destDate]; return; }
+    S.plan[destDate]=src.map(w=>{
+      const copy=JSON.parse(JSON.stringify(w));
+      copy.id=uid(); copy.done=false; copy.garminWorkoutId=null;
+      delete copy.actual;
+      // the name embeds the original weekday+date (autoName) - refresh it to
+      // the new date, but only if it's still the untouched auto-generated
+      // name, so a workout the user hand-renamed keeps its custom name.
+      if(copy.name===autoName(copy.sport,copy.type,d)) copy.name=autoName(copy.sport,copy.type,curWk[i]);
+      return copy;
+    });
+  });
   save(); render();
 }
 
