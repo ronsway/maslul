@@ -382,6 +382,7 @@
   .navrow .nrt{font-family:'Rubik'; font-weight:700; font-size:14px;}
   .navrow .nrs{color:var(--muted); font-size:12px; margin-top:2px;}
   .navrow .nrarrow{color:var(--muted); font-size:16px; flex:none; margin-inline-start:10px;}
+  .navrow .nricon{color:var(--muted); flex:none; display:grid; place-items:center; width:22px; height:22px; margin-inline-end:11px;}
   .backrow{display:flex; align-items:center; gap:8px; margin-bottom:14px;}
   .backrow button{color:var(--muted); font-weight:700; font-size:13px; display:flex; align-items:center; gap:4px;}
 
@@ -400,6 +401,11 @@
   .raceactions .racelinks{display:flex; align-items:center; gap:8px;}
   .raceiconbtn{width:26px; height:26px; border-radius:50%; background:var(--panel2); border:1px solid var(--line);
     color:var(--easy); display:inline-flex; align-items:center; justify-content:center; flex:none; text-decoration:none;}
+  /* brand-accent fill (same colors as the header logo mark) rather than the muted
+     panel2/easy combo every other small icon button uses - "back to today" is an
+     action worth noticing, not another quiet icon to blend in with the rest */
+  .todaybtn{width:26px; height:26px; border-radius:50%; background:var(--work); border:none;
+    color:#1a0d09; display:inline-flex; align-items:center; justify-content:center; flex:none;}
 
   .addblk{width:100%; padding:11px; border-radius:12px; border:1px dashed var(--line);
     color:var(--muted); font-weight:700; font-size:13px; margin-bottom:16px;}
@@ -698,7 +704,10 @@ const T={
   sendToGarmin:{he:'שלח לגרמין', en:'Send to Garmin'},
   showPayload:{he:'הצג את ה-JSON שיישלח', en:'Show JSON to be sent'},
   close:{he:'סגור', en:'Close'},
-  profileTitle:{he:'הגדרות', en:'Settings'},
+  profileTitle:{he:'תפריט', en:'Menu'},
+  secSettingsGroup:{he:'הגדרות', en:'Settings'},
+  roadmapMenuSub:{he:'תכנית שבועית לקראת המרוץ הבא', en:'Weekly plan toward your next race'},
+  statsMenuSub:{he:'מגמות ונפח לאורך זמן', en:'Trends and volume over time'},
   secProfile:{he:'פרופיל', en:'Profile'},
   secZones:{he:'איזורי אימון', en:'Training zones'},
   secPrefs:{he:'העדפות תצוגה', en:'Display preferences'},
@@ -1665,15 +1674,6 @@ function render(){
       <div class="brand"><h1 class="disp">Maslul</h1><span class="tick"></span></div>
     </div>
     <div class="hdrbtns">
-      <button class="langbtn" onclick="openRaces()" aria-label="${t('racesTitle')}" title="${t('racesTitle')}">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V4"/><path d="M4 4h11l-2 4 2 4H4"/></svg>
-      </button>
-      <button class="langbtn" onclick="openRoadmap()" aria-label="${t('roadmapTitle')}" title="${t('roadmapTitle')}">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 5h5l2 5h5"/><path d="M5 7v10h5l2-5h5"/></svg>
-      </button>
-      <button class="langbtn" onclick="openStats()" aria-label="${t('statsTitle')}" title="${t('statsTitle')}">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg>
-      </button>
       <button class="profbtn" onclick="openProfile()">${S.profile.photo?`<img src="${S.profile.photo}">`:initials.toUpperCase()}</button>
     </div>
   </header>
@@ -1694,7 +1694,7 @@ function render(){
     <div style="text-align:center">
       <div class="rng disp" style="display:flex; align-items:center; justify-content:center; gap:7px">
         <button class="rngbtn mono" onclick="openDateJump()" aria-label="${t('jumpToDate')}" title="${t('jumpToDate')}">${rng} · ${yr}</button>
-        ${S.offset!==0? `<button class="raceiconbtn" onclick="goToToday()" aria-label="${t('backToToday')}" title="${t('backToToday')}">
+        ${S.offset!==0? `<button class="todaybtn" onclick="goToToday()" aria-label="${t('backToToday')}" title="${t('backToToday')}">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/></svg>
         </button>` : ''}
       </div>
@@ -2655,7 +2655,32 @@ function profileSheet(){
     <h2 class="disp">${t('profileTitle')}</h2>
 
     <div class="drawersec" style="margin-top:0; border-top:none; padding-top:0">
-      <div class="minilbl">${t('secProfile')}</div>
+      <button class="navrow" onclick="openRaces()">
+        <div style="display:flex; align-items:center; min-width:0">
+          <span class="nricon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V4"/><path d="M4 4h11l-2 4 2 4H4"/></svg></span>
+          <div><div class="nrt">${t('racesTitle')}</div><div class="nrs">${nextRaceSummary(p)}</div></div>
+        </div>
+        <span class="nrarrow">${drillArrow()}</span>
+      </button>
+      <button class="navrow" onclick="openRoadmap()">
+        <div style="display:flex; align-items:center; min-width:0">
+          <span class="nricon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 5h5l2 5h5"/><path d="M5 7v10h5l2-5h5"/></svg></span>
+          <div><div class="nrt">${t('roadmapTitle')}</div><div class="nrs">${t('roadmapMenuSub')}</div></div>
+        </div>
+        <span class="nrarrow">${drillArrow()}</span>
+      </button>
+      <button class="navrow" style="margin-bottom:0" onclick="openStats()">
+        <div style="display:flex; align-items:center; min-width:0">
+          <span class="nricon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg></span>
+          <div><div class="nrt">${t('statsTitle')}</div></div>
+        </div>
+        <span class="nrarrow">${drillArrow()}</span>
+      </button>
+    </div>
+
+    <div class="drawersec">
+      <div class="minilbl">${t('secSettingsGroup')}</div>
+      <div class="minilbl" style="text-transform:none; letter-spacing:normal; margin-top:-2px">${t('secProfile')}</div>
       <div style="display:flex; align-items:center; gap:14px; margin-bottom:${S.sheet.photoMenuOpen?'10px':'18px'}">
         <button class="avatarbig" onclick="togglePhotoMenu()" aria-label="${t('editPhoto')}">
           ${p.photo?`<img src="${p.photo}">`:initial}
@@ -2703,13 +2728,13 @@ function profileSheet(){
       </div>
     </div>
 
+    ${garminSectionHTML()}
+
     <div class="drawersec">
       <div class="minilbl">${t('secAccount')}</div>
       <div class="note">${t('connectedAs')}${AUTH.session?.user?.email||''}${t('syncNote')}</div>
       <button class="ghost signout" onclick="signOut()">${t('signOut')}</button>
     </div>
-
-    ${garminSectionHTML()}
 
     <div class="drawersec">
       <button class="primary disp" onclick="saveProfile()">${t('save')}</button>
@@ -2721,6 +2746,13 @@ function profileSheet(){
 function zonesSummary(p){
   if(!p.maxHR && !p.restHR && !p.thrPace) return t('zonesNotSet');
   return [p.maxHR&&('HR '+p.maxHR+'/'+(p.restHR||'—')), p.thrPace&&(p.thrPace+'/'+t('kmShort'))].filter(Boolean).join(' · ');
+}
+function nextRaceSummary(p){
+  const today=ymd(new Date());
+  const races=(p.races||[]).filter(r=>r.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
+  if(!races.length) return t('noRaces');
+  const r=races[0], d=daysUntil(r.date);
+  return r.name+' · '+(d>0? '+'+d+' '+t('daysWord') : (d===0? t('raceToday') : t('racePast')));
 }
 function drillArrow(){ return S.lang==='he'?'‹':'›'; }
 function backArrow(){ return S.lang==='he'?'›':'‹'; }
