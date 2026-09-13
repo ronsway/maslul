@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.88 - 2026-09-13 13:05 - Send week to Garmin button is no longer fixed to viewport bottom
+
 ## v1.0.87 - 2026-09-13 13:02 - Move account and Garmin connections into a Linked accounts popup
 
 ## v1.0.86 - 2026-09-13 13:00 - Move per-day add and send actions above auto-generate week
