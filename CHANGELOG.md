@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.95 - 2026-09-13 13:51 - Orange buttons now consistently mean send or commit data
+
 ## v1.0.94 - 2026-09-13 13:49 - Respect Android back button for popups and add iOS back button
 
 ## v1.0.93 - 2026-09-13 13:40 - Leave a bottom gap on tall popups so rounded corners do not look cut off
