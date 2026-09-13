@@ -288,7 +288,7 @@
      it (position:absolute/sticky both still scroll with an overflow:auto
      ancestor's content - only a true flex-layout sibling avoids that): the
      sheet becomes a column with a scrolling content pane and a fixed footer. */
-  .sheet.floatwrap{display:flex; flex-direction:column; overflow:hidden; padding:0;}
+  .sheet.floatwrap{display:flex; flex-direction:column; overflow:hidden; padding:0; border-radius:22px;}
   .floatscroll{overflow-y:auto; flex:1; min-height:0; padding:8px 18px calc(24px + env(safe-area-inset-bottom)); box-sizing:border-box;}
   .floatclose{flex:none; background:var(--ink); padding:12px 18px calc(12px + env(safe-area-inset-bottom));
     border-top:1px solid var(--line);}
