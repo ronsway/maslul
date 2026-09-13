@@ -83,6 +83,15 @@
     border:1px solid var(--line); display:grid; place-items:center; color:var(--muted); font-size:18px;
     direction:ltr; unicode-bidi:isolate;}
   .navbtn:active{background:var(--panel2);}
+  /* iOS PWAs (standalone/home-screen) have no browser chrome at all - no back
+     gesture, no back button - so a popup needs an explicit way to dismiss it
+     beyond tapping the scrim. Android's hardware/gesture back is instead
+     wired through the History API (see popstate handler) since it already
+     works there without any on-screen affordance. */
+  .iosback{position:fixed; top:calc(14px + env(safe-area-inset-top)); inset-inline-start:14px; z-index:55;
+    width:36px; height:36px; border-radius:50%; background:var(--panel); border:1px solid var(--line);
+    color:var(--txt); display:grid; place-items:center; font-size:19px; box-shadow:0 2px 10px rgba(0,0,0,.25);}
+  .iosback:active{background:var(--panel2);}
 
   .strip{display:grid; grid-template-columns:repeat(7,1fr); gap:6px; padding:8px 14px 4px;
     touch-action:pan-y;}
@@ -1405,6 +1414,17 @@ let S={
   profile: store.get('profile',{nameHe:'', nameEn:'', maxHR:'', restHR:'', thrPace:'', races:[], photo:''}),
   sheet:null, // {mode:'edit'|'send', draft, editIndex}
 };
+/* Android's hardware/gesture back button should close an open popup instead
+   of leaving the app (or doing nothing) - achieved by pushing one history
+   entry per popup session and popping it on close, so the back button's
+   popstate event and our own close buttons both land on the same code path.
+   One entry per session (not per nested drill-in) - back always dismisses
+   the whole popup, matching what its own in-app back/close buttons already
+   do at any depth. */
+let sheetHistoryPushed=false;
+window.addEventListener('popstate', ()=>{
+  if(S.sheet){ S.sheet=null; sheetHistoryPushed=false; render(); }
+});
 /* older saved profiles only had a single `name` field - split it into both
    languages once so nothing gets silently blanked out for existing users */
 function migrateProfileName(p){
@@ -1753,6 +1773,19 @@ function render(){
     </button>
   </div>
   ${renderSheet()}`;
+
+  // only when the open popup has no in-content back/close row of its own
+  // (nested drill-ins like zones/profile-edit/prefs/accounts/race-form
+  // already have one, right where this would otherwise sit on top of it)
+  if(S.sheet && isIOSDevice() && !document.querySelector('.backrow')){
+    const btn=document.createElement('button');
+    btn.className='iosback'; btn.setAttribute('aria-label', t('close'));
+    btn.textContent=backArrow(); btn.onclick=closeSheet;
+    app.appendChild(btn);
+  }
+
+  if(S.sheet && !sheetHistoryPushed){ history.pushState({maslulSheet:true}, ''); sheetHistoryPushed=true; }
+  else if(!S.sheet && sheetHistoryPushed){ sheetHistoryPushed=false; }
 
   if(prevScroll){ const s=document.querySelector('.sheet, .drawer'); if(s) s.scrollTop=prevScroll; }
   restoreFocus(focusInfo);
@@ -2834,6 +2867,7 @@ function nextRaceSummary(p){
 }
 function drillArrow(){ return S.lang==='he'?'‹':'›'; }
 function backArrow(){ return S.lang==='he'?'›':'‹'; }
+function isIOSDevice(){ return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream; }
 
 /* training-zones sub-sheet, drilled into from the settings hub - split out
    because these numbers get set once and rarely revisited, unlike profile/prefs */
@@ -3057,10 +3091,16 @@ function closeSheet(){
   if(S.sheet && ['profile','zones','profileEdit','prefs','accounts'].includes(S.sheet.mode)){
     if(S.sheet.closing) return;
     S.sheet.closing=true; render();
-    setTimeout(()=>{ S.sheet=null; render(); }, 220);
+    setTimeout(()=>{
+      const hadHistory=sheetHistoryPushed;
+      S.sheet=null; render();
+      if(hadHistory) history.back();
+    }, 220);
     return;
   }
+  const hadHistory=sheetHistoryPushed;
   S.sheet=null; render();
+  if(hadHistory) history.back();
 }
 
 function onPhotoFile(input){
