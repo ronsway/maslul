@@ -1714,7 +1714,7 @@ function render(){
     }).join('')}
   </div>
 
-  <div style="padding:0 18px 4px">
+  <div style="padding:14px 18px 4px">
     <button class="addbtn" onclick="openEditor()"><span class="p">+</span> ${t('addWorkout')}</button>
     ${dayHasWorkouts?`<button class="addbtn" style="margin-top:8px" onclick="openSendDay()">${t('sendThisDay')}</button>`:''}
   </div>
@@ -1838,6 +1838,8 @@ function renderSheet(){
   if(S.sheet.mode==='run') return runSheet();
   if(S.sheet.mode==='confirmDelWorkout') return confirmDelWorkoutSheet();
   if(S.sheet.mode==='accounts') return accountsSheet();
+  if(S.sheet.mode==='profileEdit') return profileEditSheet();
+  if(S.sheet.mode==='prefs') return prefsSheet();
   return `<div class="scrim"></div>`;
 }
 function openStats(){ if(S.sheet && S.sheet.mode==='stats') return; S.sheet={mode:'stats'}; render(); }
@@ -1874,6 +1876,12 @@ function statsSheet(){
   return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet compact${sheetEntering()}">
     <div class="grab"></div>
     <h2 class="disp">${t('statsTitle')}</h2>
+
+    <button class="navrow" onclick="openZones()">
+      <div><div class="nrt">${t('secZones')}</div>
+        <div class="nrs">${zonesSummary(S.profile)}</div></div>
+      <span class="nrarrow">${drillArrow()}</span>
+    </button>
 
     <div class="statrow">
       <div class="statbox"><div class="statval mono">${mo.done.toFixed(1)}<span class="statunit">/${mo.planned.toFixed(1)}</span></div><div class="statlbl">${t('monthKm')}</div></div>
@@ -2662,6 +2670,69 @@ function accountsSheet(){
     ${garminSectionHTML()}
   </div></div>`;
 }
+function profileEditSheet(){
+  const p=S.profile;
+  const googleAvatar=AUTH.session?.user?.user_metadata?.avatar_url||AUTH.session?.user?.user_metadata?.picture||'';
+  const initial=(profileName(p)||'?').trim().charAt(0).toUpperCase()||'?';
+  const side=S.lang==='he'?'side-right':'side-left';
+  const closing=S.sheet.closing?' closing':'';
+  const entering=sheetEntering();
+  return `<div class="drawerscrim${entering}${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${entering}${closing}">
+    <div class="backrow"><button onclick="backToProfile()">${backArrow()} ${t('backWord')}</button></div>
+    <h2 class="disp">${t('secProfile')}</h2>
+
+    <div class="drawersec" style="margin-top:0; border-top:none; padding-top:0">
+      <div style="display:flex; align-items:center; gap:14px; margin-bottom:${S.sheet.photoMenuOpen?'10px':'18px'}">
+        <button class="avatarbig" onclick="togglePhotoMenu()" aria-label="${t('editPhoto')}">
+          ${p.photo?`<img src="${p.photo}">`:initial}
+          <span class="avatarbadge">✎</span>
+        </button>
+        ${S.lang==='he'
+          ? `<input value="${p.nameHe||''}" placeholder="${t('name')}" dir="rtl" oninput="S.profile.nameHe=this.value"
+              style="flex:1; background:var(--panel); border:1px solid var(--line); color:var(--txt);
+              border-radius:12px; padding:12px; font-family:'Assistant'; font-size:15px;">`
+          : `<input value="${p.nameEn||''}" placeholder="${t('name')}" dir="ltr" oninput="S.profile.nameEn=this.value"
+              style="flex:1; background:var(--panel); border:1px solid var(--line); color:var(--txt);
+              border-radius:12px; padding:12px; font-family:'Assistant'; font-size:15px;">`}
+      </div>
+      ${S.sheet.photoMenuOpen? `<div style="display:flex; flex-direction:column; gap:8px; margin-bottom:18px">
+          <input type="file" accept="image/*" id="photoInput" style="display:none" onchange="onPhotoFile(this)">
+          <button class="ghost" style="margin:0" onclick="document.getElementById('photoInput').click()">${t('uploadPhoto')}</button>
+          ${googleAvatar?`<button class="ghost" style="margin:0" onclick="importGooglePhoto()">${t('importGooglePhoto')}</button>`:''}
+          ${p.photo?`<button class="ghost" style="margin:0; color:#ff7a68" onclick="removePhoto()">${t('removePhoto')}</button>`:''}
+        </div>` : ''}
+    </div>
+
+    <div class="drawersec">
+      <button class="primary disp" onclick="saveProfile()">${t('save')}</button>
+      <button class="ghost" onclick="backToProfile()">${t('close')}</button>
+    </div>
+  </div></div>`;
+}
+function prefsSheet(){
+  const side=S.lang==='he'?'side-right':'side-left';
+  const closing=S.sheet.closing?' closing':'';
+  const entering=sheetEntering();
+  return `<div class="drawerscrim${entering}${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${entering}${closing}">
+    <div class="backrow"><button onclick="backToProfile()">${backArrow()} ${t('backWord')}</button></div>
+    <h2 class="disp">${t('secPrefs')}</h2>
+
+    <div class="field">
+      <label>${t('languageLabel')}</label>
+      <div class="toggle">
+        <button class="${S.lang==='he'?'on':''}" onclick="setLang('he')">עברית</button>
+        <button class="${S.lang==='en'?'on':''}" onclick="setLang('en')">English</button>
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:0">
+      <label>${t('themeLabel')}</label>
+      <div class="toggle">
+        <button class="${S.theme==='dark'?'on':''}" onclick="setTheme('dark')">🌙 ${t('darkWord')}</button>
+        <button class="${S.theme==='light'?'on':''}" onclick="setTheme('light')">☀️ ${t('lightWord')}</button>
+      </div>
+    </div>
+  </div></div>`;
+}
 function profileSheet(){
   const p=S.profile;
   const googleAvatar=AUTH.session?.user?.user_metadata?.avatar_url||AUTH.session?.user?.user_metadata?.picture||'';
@@ -2698,55 +2769,18 @@ function profileSheet(){
 
     <div class="drawersec">
       <div class="minilbl">${t('secSettingsGroup')}</div>
-      <div class="minilbl" style="text-transform:none; letter-spacing:normal; margin-top:-2px">${t('secProfile')}</div>
-      <div style="display:flex; align-items:center; gap:14px; margin-bottom:${S.sheet.photoMenuOpen?'10px':'18px'}">
-        <button class="avatarbig" onclick="togglePhotoMenu()" aria-label="${t('editPhoto')}">
-          ${p.photo?`<img src="${p.photo}">`:initial}
-          <span class="avatarbadge">✎</span>
-        </button>
-        ${S.lang==='he'
-          ? `<input value="${p.nameHe||''}" placeholder="${t('name')}" dir="rtl" oninput="S.profile.nameHe=this.value"
-              style="flex:1; background:var(--panel); border:1px solid var(--line); color:var(--txt);
-              border-radius:12px; padding:12px; font-family:'Assistant'; font-size:15px;">`
-          : `<input value="${p.nameEn||''}" placeholder="${t('name')}" dir="ltr" oninput="S.profile.nameEn=this.value"
-              style="flex:1; background:var(--panel); border:1px solid var(--line); color:var(--txt);
-              border-radius:12px; padding:12px; font-family:'Assistant'; font-size:15px;">`}
-      </div>
-      ${S.sheet.photoMenuOpen? `<div style="display:flex; flex-direction:column; gap:8px; margin-bottom:18px">
-          <input type="file" accept="image/*" id="photoInput" style="display:none" onchange="onPhotoFile(this)">
-          <button class="ghost" style="margin:0" onclick="document.getElementById('photoInput').click()">${t('uploadPhoto')}</button>
-          ${googleAvatar?`<button class="ghost" style="margin:0" onclick="importGooglePhoto()">${t('importGooglePhoto')}</button>`:''}
-          ${p.photo?`<button class="ghost" style="margin:0; color:#ff7a68" onclick="removePhoto()">${t('removePhoto')}</button>`:''}
-        </div>` : ''}
-    </div>
-
-    <div class="drawersec">
-      <button class="navrow" style="margin-bottom:0" onclick="openZones()">
-        <div><div class="nrt">${t('secZones')}</div>
-          <div class="nrs">${zonesSummary(p)}</div></div>
+      <button class="navrow" onclick="openProfileEdit()">
+        <div style="display:flex; align-items:center; min-width:0">
+          <span class="nricon" style="width:26px; height:26px; border-radius:50%; overflow:hidden; background:var(--panel2)">${p.photo?`<img src="${p.photo}" style="width:100%; height:100%; object-fit:cover">`:initial}</span>
+          <div><div class="nrt">${t('secProfile')}</div><div class="nrs">${profileName(p)||t('name')}</div></div>
+        </div>
         <span class="nrarrow">${drillArrow()}</span>
       </button>
-    </div>
-
-    <div class="drawersec">
-      <div class="minilbl">${t('secPrefs')}</div>
-      <div class="field">
-        <label>${t('languageLabel')}</label>
-        <div class="toggle">
-          <button class="${S.lang==='he'?'on':''}" onclick="setLang('he')">עברית</button>
-          <button class="${S.lang==='en'?'on':''}" onclick="setLang('en')">English</button>
-        </div>
-      </div>
-      <div class="field" style="margin-bottom:0">
-        <label>${t('themeLabel')}</label>
-        <div class="toggle">
-          <button class="${S.theme==='dark'?'on':''}" onclick="setTheme('dark')">🌙 ${t('darkWord')}</button>
-          <button class="${S.theme==='light'?'on':''}" onclick="setTheme('light')">☀️ ${t('lightWord')}</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="drawersec">
+      <button class="navrow" onclick="openPrefs()">
+        <div><div class="nrt">${t('secPrefs')}</div>
+          <div class="nrs">${S.lang==='he'?'עברית':'English'} · ${S.theme==='dark'?t('darkWord'):t('lightWord')}</div></div>
+        <span class="nrarrow">${drillArrow()}</span>
+      </button>
       <button class="navrow" style="margin-bottom:0" onclick="openAccounts()">
         <div><div class="nrt">${t('secAccountsGroup')}</div>
           <div class="nrs">${AUTH.session?.user?.email||''}</div></div>
@@ -2783,7 +2817,7 @@ function zonesSheet(){
   const closing=S.sheet.closing?' closing':'';
   const entering=sheetEntering();
   return `<div class="drawerscrim${entering}${closing}" onclick="if(event.target===this)closeSheet()"><div class="drawer ${side}${entering}${closing}">
-    <div class="backrow"><button onclick="backToProfile()">${backArrow()} ${t('backWord')}</button></div>
+    <div class="backrow"><button onclick="backToStats()">${backArrow()} ${t('backWord')}</button></div>
     <h2 class="disp">${t('secZones')}</h2>
     <div class="row2">
       <div class="field"><label>${t('maxHR')}</label><input class="mono" inputmode="numeric" value="${p.maxHR||''}" oninput="S.profile.maxHR=this.value"></div>
@@ -2793,7 +2827,7 @@ function zonesSheet(){
 
     <div class="drawersec">
       <button class="primary disp" onclick="saveProfile()">${t('save')}</button>
-      <button class="ghost" onclick="backToProfile()">${t('close')}</button>
+      <button class="ghost" onclick="backToStats()">${t('close')}</button>
     </div>
   </div></div>`;
 }
@@ -2987,12 +3021,15 @@ async function disconnectGarmin(){
 function togglePhotoMenu(){ S.sheet.photoMenuOpen=!S.sheet.photoMenuOpen; render(); }
 function openZones(){ if(S.sheet && S.sheet.mode==='zones') return; S.sheet={mode:'zones'}; render(); }
 function openRaces(){ if(S.sheet && S.sheet.mode==='races') return; S.sheet={mode:'races', view:'list', raceDraft:{date:'',name:'',km:'',target:'',split:'negative',terrain:'road'}}; render(); }
+function openProfileEdit(){ if(S.sheet && S.sheet.mode==='profileEdit') return; S.sheet={mode:'profileEdit', photoMenuOpen:false}; render(); }
+function openPrefs(){ if(S.sheet && S.sheet.mode==='prefs') return; S.sheet={mode:'prefs'}; render(); }
 function backToProfile(){ save(); S.sheet={mode:'profile'}; render(); }
+function backToStats(){ save(); S.sheet={mode:'stats'}; render(); }
 function saveProfile(){
   save(); closeSheet();
 }
 function closeSheet(){
-  if(S.sheet && ['profile','zones'].includes(S.sheet.mode)){
+  if(S.sheet && ['profile','zones','profileEdit','prefs','accounts'].includes(S.sheet.mode)){
     if(S.sheet.closing) return;
     S.sheet.closing=true; render();
     setTimeout(()=>{ S.sheet=null; render(); }, 220);
