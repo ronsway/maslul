@@ -933,6 +933,14 @@ function setTheme(th){ S.theme=th; store.set('theme',th); render(); }
 /* ============ helpers ============ */
 const pad=n=>String(n).padStart(2,'0');
 const uid=()=>Math.random().toString(36).slice(2,9);
+/* free-text user input (workout/race/profile names, threshold pace, the
+   Garmin account email echoed back from the backend) gets interpolated
+   straight into innerHTML template strings throughout render() - escape it
+   at every render call site so a name like <img src=x onerror=...> can't
+   execute. Never apply this at the data source (profileName(), w.name
+   itself) - those values also feed buildPayload()'s JSON sent to Garmin,
+   which must stay unescaped. */
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function ymd(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
 function daysUntil(dateStr){
   const now=new Date(); now.setHours(0,0,0,0);
@@ -1459,7 +1467,7 @@ function profileName(p){ return S.lang==='he'? (p.nameHe||p.nameEn||'') : (p.nam
 function greeting(){
   const h=new Date().getHours();
   const key = h<5? 'greetNight' : h<12? 'greetMorning' : h<17? 'greetAfternoon' : h<21? 'greetEvening' : 'greetNight';
-  const name=profileName(S.profile).trim().split(/\s+/)[0]||'';
+  const name=esc(profileName(S.profile).trim().split(/\s+/)[0]||'');
   return name? `${t(key)}, ${name}` : t(key);
 }
 function save(){
@@ -1606,7 +1614,7 @@ function generateWeekPlan(offset, dayIdx){
 function genContextNote(offset){
   const race=nextRace(offset), w=weeksToRaceFor(offset), phase=phaseFor(w);
   let s=t('phaseLabel')+PHASE_NAME[phase][S.lang];
-  s += race? (t('weeksToRaceNote')+w+t('weeksToRaceSuffix')+race.name) : t('noRaceSet');
+  s += race? (t('weeksToRaceNote')+w+t('weeksToRaceSuffix')+esc(race.name)) : t('noRaceSet');
   if(race?.terrain==='trail') s+='<br>'+t('trailPlanNote');
   return s;
 }
@@ -1656,16 +1664,16 @@ function loginScreen(){
         </div>
         <div class="field" style="margin-bottom:0; text-align:${side}">
           <label>${t('emailLabel')}</label>
-          <input type="email" dir="ltr" autocomplete="email" value="${f.email}" oninput="AUTHFORM.email=this.value" ${f.busy?'disabled':''}>
+          <input type="email" dir="ltr" autocomplete="email" value="${esc(f.email)}" oninput="AUTHFORM.email=this.value" ${f.busy?'disabled':''}>
         </div>
         <div class="field" style="margin-bottom:0; text-align:${side}">
           <label>${t('passwordLabel')}</label>
-          <input type="password" dir="ltr" autocomplete="${f.mode==='signup'?'new-password':'current-password'}" value="${f.password}" oninput="AUTHFORM.password=this.value" ${f.busy?'disabled':''}>
+          <input type="password" dir="ltr" autocomplete="${f.mode==='signup'?'new-password':'current-password'}" value="${esc(f.password)}" oninput="AUTHFORM.password=this.value" ${f.busy?'disabled':''}>
         </div>
         ${f.mode==='signup'? `
         <div class="field" style="margin-bottom:0; text-align:${side}">
           <label>${t('passwordConfirmLabel')}</label>
-          <input type="password" dir="ltr" autocomplete="new-password" value="${f.password2}" oninput="AUTHFORM.password2=this.value" ${f.busy?'disabled':''}>
+          <input type="password" dir="ltr" autocomplete="new-password" value="${esc(f.password2)}" oninput="AUTHFORM.password2=this.value" ${f.busy?'disabled':''}>
         </div>
         <div style="color:var(--muted); font-size:11px; margin-top:-8px">${t('passwordHint')}</div>` : ''}
         <button class="primary disp" onclick="submitAuthForm()" ${f.busy?'disabled':''}>${f.mode==='signup'?t('authSubmitSignup'):t('authSubmitSignin')}</button>
@@ -1687,7 +1695,7 @@ function resetPasswordScreen(){
     <div style="width:100%; max-width:280px; display:flex; flex-direction:column; gap:14px">
       <div class="field" style="margin-bottom:0; text-align:${side}">
         <label>${t('passwordLabel')}</label>
-        <input type="password" dir="ltr" autocomplete="new-password" value="${f.newPassword}" oninput="AUTHFORM.newPassword=this.value" ${f.busy?'disabled':''}>
+        <input type="password" dir="ltr" autocomplete="new-password" value="${esc(f.newPassword)}" oninput="AUTHFORM.newPassword=this.value" ${f.busy?'disabled':''}>
       </div>
       <div style="color:var(--muted); font-size:11px; margin-top:-8px">${t('passwordHint')}</div>
       <button class="primary disp" onclick="submitNewPassword()" ${f.busy?'disabled':''}>${t('resetPasswordSubmit')}</button>
@@ -1842,7 +1850,7 @@ function renderCard(w,idx){
   const col=TYPES[w.type].color;
   return `<div class="card ${w.done?'done':''}">
     <div class="top">
-      <span class="badge" style="background:var(${col}); color:#160b08">${w.name}</span>
+      <span class="badge" style="background:var(${col}); color:#160b08">${esc(w.name)}</span>
       <span class="dur">${mmss(total)} · ~${Math.round(total/60)} ${t('min')}</span>
     </div>
     <div class="profile">${bar}</div>
@@ -1960,7 +1968,7 @@ function statsSheet(){
 
     <button class="navrow" onclick="openZones()">
       <div><div class="nrt">${t('secZones')}</div>
-        <div class="nrs">${zonesSummary(S.profile)}</div></div>
+        <div class="nrs">${esc(zonesSummary(S.profile))}</div></div>
       <span class="nrarrow">${drillArrow()}</span>
     </button>
 
@@ -2034,7 +2042,7 @@ function roadmapRaceCard(race,primary){
   const stages=roadmapStages(race);
   return `<div class="roadmaprace">
     <div class="roadmaphead">
-      <div><div class="roadmapname">${race.name}</div>
+      <div><div class="roadmapname">${esc(race.name)}</div>
         <div class="roadmapmeta"><span class="mono">${fmtRaceDate(race.date)}</span>${race.km?`<span>${race.km} ${t('kmShort')}</span>`:''}<span class="roadtag">${t(terrain==='trail'?'trailRace':'roadRace')}</span></div>
       </div>
       <span class="roadtag mono">${days} ${t('daysWord')}</span>
@@ -2107,7 +2115,7 @@ function coachWeekCard(w){
     : `~${w.km} ${t('kmShort')}`;
   const weekLabel=w.raceWeek? t('coachRaceWeekWord') : `${t('coachWeekWord')} ${w.weekNum}`;
   return `<div class="coachweek">
-    <div class="coachhead"><div><div class="coachname">${weekLabel} · ${phaseTitle} · ${w.target.name}</div>
+    <div class="coachhead"><div><div class="coachname">${weekLabel} · ${phaseTitle} · ${esc(w.target.name)}</div>
       <div class="coachmeta">${roadmapRange(w.weekStart,w.weekEnd)}</div></div><div class="coachload">${load}</div></div>
     <ul class="coachitems">${w.sessions.map(s=>`<li>${s}</li>`).join('')}</ul>
   </div>`;
@@ -2261,7 +2269,7 @@ function runSheet(){
 
   return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet${sheetEntering()}">
     <div class="grab"></div>
-    <h2 class="disp">${w.name}</h2>
+    <h2 class="disp">${esc(w.name)}</h2>
     ${a.matchedByDate? `<div class="note" style="margin-bottom:12px">${t('matchedByDateNote')}</div>` : ''}
     <div class="statrow" style="flex-wrap:wrap; gap:8px">
       ${stats.map(([v,l])=>`<div class="statbox" style="flex:1 1 28%; min-width:88px">
@@ -2298,7 +2306,7 @@ function previewCard(dateStr,w){
   const col=TYPES[w.type].color;
   return `<div class="card">
     <div class="top">
-      <span class="badge" style="background:var(${col}); color:#160b08">${w.name}</span>
+      <span class="badge" style="background:var(${col}); color:#160b08">${esc(w.name)}</span>
       <span class="dur">${mmss(total)} · ~${Math.round(total/60)} ${t('min')}</span>
     </div>
     <div class="n mono" style="margin-bottom:8px">${DAYS[S.lang][d.getDay()]} ${d.getDate()} ${MONTHS_I18N[S.lang][d.getMonth()]}</div>
@@ -2354,7 +2362,7 @@ function editorSheet(){
     </div>` : ''}
 
     <div class="field"><label>${t('workoutName')}</label>
-      <input value="${d.name}" oninput="d_name(this.value)"></div>
+      <input value="${esc(d.name)}" oninput="d_name(this.value)"></div>
 
     ${isRace? raceDistSection(d) : isStrength? strengthSection(d) : isCrossfit? crossfitSection(d) : `
     <div class="field">
@@ -2672,11 +2680,11 @@ function sendSheet(){
     <div style="margin:14px 0 4px" class="minilbl">${items.length} ${t('workoutsToSend')}</div>
     <div style="margin-bottom:14px">${items.map(it=>`<div class="step" style="padding:6px 0">
       <span class="pip" style="background:var(${TYPES[it.w.type].color})"></span>
-      <span class="lbl">${it.w.name}</span>
+      <span class="lbl">${esc(it.w.name)}</span>
       <span class="val">${it.date.slice(5)}</span></div>`).join('')}</div>
 
     ${res? `<div style="margin-bottom:10px">${res.map(r=>`<div class="res ${r.ok?'ok':'err'}">
-        <span>${r.name} · ${r.date.slice(5)}</span><span class="mono">${r.ok?t('scheduled'):t('errorWord')}</span></div>`).join('')}</div>`:''}
+        <span>${esc(r.name)} · ${r.date.slice(5)}</span><span class="mono">${r.ok?t('scheduled'):t('errorWord')}</span></div>`).join('')}</div>`:''}
 
     <div style="display:flex; gap:8px">
       <button class="ghost" style="margin:0; flex:1" onclick="closeSheet()">${t('close')}</button>
@@ -2700,7 +2708,7 @@ function garminSectionHTML(){
 
   let statusLine;
   if(!st) statusLine=`<div class="note">${t('garminCheckingStatus')}</div>`;
-  else if(st.status==='connected') statusLine=`<div class="note"><span style="color:var(--easy)">●</span> ${t('garminConnected')}${st.garmin_email?' · '+st.garmin_email:''}</div>`;
+  else if(st.status==='connected') statusLine=`<div class="note"><span style="color:var(--easy)">●</span> ${t('garminConnected')}${st.garmin_email?' · '+esc(st.garmin_email):''}</div>`;
   else if(st.status==='needs_reauth') statusLine=`<div class="note"><span style="color:var(--work)">●</span> ${t('garminNeedsReauth')}</div>`;
   else statusLine=`<div class="note"><span style="color:var(--muted2)">●</span> ${t('garminNotConnected')}</div>`;
 
@@ -2715,9 +2723,9 @@ function garminSectionHTML(){
   if(form && form.mode==='password'){
     formHTML=`
       <div class="field"><label>${t('garminEmailLabel')}</label>
-        <input type="email" dir="ltr" value="${form.email}" oninput="S.sheet.garminForm.email=this.value" ${form.busy?'disabled':''}></div>
+        <input type="email" dir="ltr" value="${esc(form.email)}" oninput="S.sheet.garminForm.email=this.value" ${form.busy?'disabled':''}></div>
       <div class="field"><label>${t('garminPasswordLabel')}</label>
-        <input type="password" dir="ltr" value="${form.password}" oninput="S.sheet.garminForm.password=this.value" ${form.busy?'disabled':''}></div>
+        <input type="password" dir="ltr" value="${esc(form.password)}" oninput="S.sheet.garminForm.password=this.value" ${form.busy?'disabled':''}></div>
       <button class="primary disp" style="margin-bottom:8px" onclick="connectGarmin()" ${form.busy?'disabled':''}>${t('garminConnectSubmit')}</button>
       <div style="display:flex; justify-content:space-between; align-items:center">
         <button class="linkbtn" onclick="garminUseToken()" ${form.busy?'disabled':''}>${t('garminHaveTokenLink')}</button>
@@ -2729,7 +2737,7 @@ function garminSectionHTML(){
       <div class="field"><label>${t('garminTokenLabel')}</label>
         <textarea dir="ltr" placeholder="${t('garminTokenPlaceholder')}" oninput="S.sheet.garminForm.token=this.value" ${form.busy?'disabled':''}
           style="width:100%; min-height:70px; background:var(--panel); border:1px solid var(--line); color:var(--txt);
-          border-radius:12px; padding:12px; font-family:'JetBrains Mono'; font-size:12px; resize:vertical; box-sizing:border-box">${form.token||''}</textarea></div>
+          border-radius:12px; padding:12px; font-family:'JetBrains Mono'; font-size:12px; resize:vertical; box-sizing:border-box">${esc(form.token)}</textarea></div>
       <button class="primary disp" style="margin-bottom:8px" onclick="connectGarminToken()" ${form.busy?'disabled':''}>${t('garminConnectTokenSubmit')}</button>
       <button class="linkbtn" onclick="closeGarminForm()" ${form.busy?'disabled':''}>${t('garminCancel')}</button>`;
   }
@@ -2777,10 +2785,10 @@ function profileEditSheet(){
           <span class="avatarbadge">✎</span>
         </button>
         ${S.lang==='he'
-          ? `<input value="${p.nameHe||''}" placeholder="${t('name')}" dir="rtl" oninput="S.profile.nameHe=this.value"
+          ? `<input value="${esc(p.nameHe)}" placeholder="${t('name')}" dir="rtl" oninput="S.profile.nameHe=this.value"
               style="flex:1; background:var(--panel); border:1px solid var(--line); color:var(--txt);
               border-radius:12px; padding:12px; font-family:'Assistant'; font-size:15px;">`
-          : `<input value="${p.nameEn||''}" placeholder="${t('name')}" dir="ltr" oninput="S.profile.nameEn=this.value"
+          : `<input value="${esc(p.nameEn)}" placeholder="${t('name')}" dir="ltr" oninput="S.profile.nameEn=this.value"
               style="flex:1; background:var(--panel); border:1px solid var(--line); color:var(--txt);
               border-radius:12px; padding:12px; font-family:'Assistant'; font-size:15px;">`}
       </div>
@@ -2836,7 +2844,7 @@ function profileSheet(){
       <button class="navrow" onclick="openRaces()">
         <div style="display:flex; align-items:center; min-width:0">
           <span class="nricon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V4"/><path d="M4 4h11l-2 4 2 4H4"/></svg></span>
-          <div><div class="nrt">${t('racesTitle')}</div><div class="nrs">${nextRaceSummary(p)}</div></div>
+          <div><div class="nrt">${t('racesTitle')}</div><div class="nrs">${esc(nextRaceSummary(p))}</div></div>
         </div>
         <span class="nrarrow">${drillArrow()}</span>
       </button>
@@ -2861,7 +2869,7 @@ function profileSheet(){
       <button class="navrow" onclick="openProfileEdit()">
         <div style="display:flex; align-items:center; min-width:0">
           <span class="nricon" style="width:26px; height:26px; border-radius:50%; overflow:hidden; background:var(--panel2)">${p.photo?`<img src="${p.photo}" style="width:100%; height:100%; object-fit:cover">`:initial}</span>
-          <div><div class="nrt">${t('secProfile')}</div><div class="nrs">${profileName(p)||t('name')}</div></div>
+          <div><div class="nrt">${t('secProfile')}</div><div class="nrs">${esc(profileName(p))||t('name')}</div></div>
         </div>
         <span class="nrarrow">${drillArrow()}</span>
       </button>
@@ -2912,10 +2920,10 @@ function zonesSheet(){
     <div class="backrow"><button onclick="backToStats()">${backArrow()} ${t('backWord')}</button></div>
     <h2 class="disp">${t('secZones')}</h2>
     <div class="row2">
-      <div class="field"><label>${t('maxHR')}</label><input class="mono" inputmode="numeric" value="${p.maxHR||''}" oninput="S.profile.maxHR=this.value"></div>
-      <div class="field"><label>${t('restHR')}</label><input class="mono" inputmode="numeric" value="${p.restHR||''}" oninput="S.profile.restHR=this.value"></div>
+      <div class="field"><label>${t('maxHR')}</label><input class="mono" inputmode="numeric" value="${esc(p.maxHR)}" oninput="S.profile.maxHR=this.value"></div>
+      <div class="field"><label>${t('restHR')}</label><input class="mono" inputmode="numeric" value="${esc(p.restHR)}" oninput="S.profile.restHR=this.value"></div>
     </div>
-    <div class="field" style="margin-bottom:0"><label>${t('thrPace')}</label><input class="mono" dir="ltr" value="${p.thrPace||''}" placeholder="4:30" oninput="S.profile.thrPace=this.value"></div>
+    <div class="field" style="margin-bottom:0"><label>${t('thrPace')}</label><input class="mono" dir="ltr" value="${esc(p.thrPace)}" placeholder="4:30" oninput="S.profile.thrPace=this.value"></div>
 
     <div class="drawersec" style="display:flex; gap:8px">
       <button class="ghost" style="margin:0; flex:1" onclick="backToStats()">${t('close')}</button>
@@ -2941,7 +2949,7 @@ function racesSheet(){
         const countdown=dLeft>0? '+'+dLeft+' '+t('daysWord') : (dLeft===0? t('raceToday') : t('racePast'));
         return `<div class="racecard">
           <div class="racetop">
-            <span class="racename">${r.name}</span>
+            <span class="racename">${esc(r.name)}</span>
             <span class="racecountdown mono${dLeft<0?' past':''}">${countdown}</span>
           </div>
           <div class="racebottom">
@@ -2976,15 +2984,15 @@ function raceFormSheet(){
   return `<div class="scrim on center" onclick="if(event.target===this)closeSheet()"><div class="sheet dialog racesdialog${sheetEntering()}">
     <div class="backrow"><button onclick="backFromRaceForm()">${backArrow()} ${t('backWord')}</button></div>
     <h2 class="disp">${S.sheet.editingRaceId? t('raceFormEdit') : t('raceFormNew')}</h2>
-    <div class="field"><label>${t('raceName')}</label><input value="${rd.name}" oninput="raceDraftField('name',this.value)"></div>
-    <div class="field"><label>${t('raceDate')}</label><input class="mono" dir="ltr" type="date" value="${rd.date}" oninput="raceDraftField('date',this.value)"></div>
+    <div class="field"><label>${t('raceName')}</label><input value="${esc(rd.name)}" oninput="raceDraftField('name',this.value)"></div>
+    <div class="field"><label>${t('raceDate')}</label><input class="mono" dir="ltr" type="date" value="${esc(rd.date)}" oninput="raceDraftField('date',this.value)"></div>
     <div class="minilbl" style="margin:4px 0 8px">${t('raceDistanceLabel')}</div>
     <div class="distchips">
       ${RACE_DIST_CHIPS_KM.map(km=>`<button class="${Math.abs(rdKm-km)<0.05?'on':''}" onclick="raceDraftDistPick(${km})">${raceChipLabel(km)}</button>`).join('')}
     </div>
     <div class="stepper">
       <button onclick="raceDraftDistStep(-1)">−</button>
-      <input class="v mono" dir="ltr" inputmode="decimal" value="${rd.km}" placeholder="${t('raceDistExactHint')}" onclick="this.select()"
+      <input class="v mono" dir="ltr" inputmode="decimal" value="${esc(rd.km)}" placeholder="${t('raceDistExactHint')}" onclick="this.select()"
         oninput="raceDraftDistInput(this.value)" onkeydown="commitOnEnter(event)">
       <button onclick="raceDraftDistStep(1)">+</button>
     </div>
@@ -2994,7 +3002,7 @@ function raceFormSheet(){
       <button class="${rd.terrain==='trail'?'on':''}" onclick="raceDraftField('terrain','trail');render()">${t('trailRace')}</button>
     </div>
     <div class="field" style="margin-top:15px"><label>${t('raceTargetLabel')}</label>
-      <input class="mono" dir="ltr" value="${rd.target||''}" placeholder="50:00" oninput="raceDraftField('target',this.value)"></div>
+      <input class="mono" dir="ltr" value="${esc(rd.target)}" placeholder="50:00" oninput="raceDraftField('target',this.value)"></div>
     ${(rd.terrain||'road')==='road'? `<div class="minilbl" style="margin-bottom:8px">${t('splitStrategyLabel')}</div>
     <div class="toggle" style="margin-bottom:${rd.target?'15px':'6px'}">
       <button class="${(rd.split||'negative')==='negative'?'on':''}" onclick="raceDraftSplit('negative')">${t('negativeSplit')}</button>
