@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.98 - 2026-09-14 05:00 - smaller greeting font first name only
+
 ## v1.0.97 - 2026-09-14 04:56 - time of day greeting header move brand to menu
 
 ## v1.0.96 - 2026-09-13 14:16 - add duplicate last week button
