@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.108 - 2026-09-14 16:45 - color the garmin sync icon orange for visibility
+
 ## v1.0.107 - 2026-09-14 16:43 - remove icons from packed action buttons to save space
 
 ## v1.0.106 - 2026-09-14 16:40 - add send icon to send day and send week to garmin buttons
