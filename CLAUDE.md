@@ -264,6 +264,16 @@ already right.
   was removed in v1.0.111 - no value to the end user, use the browser's
   network tab or a local script instead if payload inspection is ever needed
   again).
+- `render()` builds the entire UI via `innerHTML` template strings with no
+  framework escaping - any free-text field (workout name, race name, profile
+  name/HR/pace, the Garmin auth forms) MUST be wrapped in `esc()` at the
+  render call site before interpolating it, or it's a stored-XSS hole (found
+  and fixed across the whole app in v1.0.112 - a workout named
+  `<img src=x onerror=...>` executed). New free-text fields need the same
+  treatment. Exception: never call `esc()` on the value at its *source*
+  (`profileName()`, `w.name`, `race.name` themselves) - those same values
+  also feed `buildPayload()`'s JSON sent to Garmin, which must stay
+  unescaped; only escape at each place the value gets rendered as HTML.
 
 ## Roadmap (in order)
 
