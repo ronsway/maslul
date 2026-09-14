@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "app.vercel.maslul_web.twa",
+    "sha256_cert_fingerprints": ["F0:47:B2:CB:ED:6D:C1:01:6C:13:83:A6:00:21:A5:83:DD:9F:2E:3F:BD:59:03:AA:06:30:53:1C:24:BF:75:DF"]
+  }
+}]
