@@ -460,8 +460,6 @@
 
   .note{font-size:12.5px; color:var(--muted); line-height:1.55; background:var(--panel);
     border:1px solid var(--line); border-radius:12px; padding:11px 12px; margin-top:4px;}
-  .payload{font-family:'JetBrains Mono'; font-size:11px; direction:ltr; text-align:left; white-space:pre-wrap;
-    background:#0a0c10; border:1px solid var(--line); border-radius:12px; padding:12px; max-height:240px; overflow:auto; color:#9fb0c4;}
   .res{border-radius:12px; padding:11px 12px; margin-bottom:8px; font-size:14px; display:flex; justify-content:space-between; gap:10px;}
   .res.ok{background:var(--res-ok-bg); border:1px solid var(--res-ok-border); color:var(--res-ok-text);}
   .res.err{background:var(--res-err-bg); border:1px solid var(--res-err-border); color:var(--res-err-text);}
@@ -746,7 +744,6 @@ const T={
   errorWord:{he:'שגיאה', en:'Error'},
   sendAgain:{he:'שלח שוב', en:'Send again'},
   sendToGarmin:{he:'שלח לגרמין', en:'Send to Garmin'},
-  showPayload:{he:'הצג את ה-JSON שיישלח', en:'Show JSON to be sent'},
   close:{he:'סגור', en:'Close'},
   profileTitle:{he:'תפריט', en:'Menu'},
   greetMorning:{he:'בוקר טוב', en:'Good morning'},
@@ -2288,8 +2285,10 @@ function generateConfigSheet(){
     <div class="gendays">
       ${DAYS[S.lang].map((dn,i)=>`<button class="${days.includes(i)?'on':''}" onclick="toggleGenDay(${i})">${dn}</button>`).join('')}
     </div>
-    <button class="primary disp" onclick="proposeWeek()">${t('suggestPlan')}</button>
-    <button class="ghost" onclick="closeSheet()">${t('cancel')}</button>
+    <div style="display:flex; gap:8px">
+      <button class="ghost" style="margin:0; flex:1" onclick="closeSheet()">${t('cancel')}</button>
+      <button class="primary disp" style="margin:0; flex:1" onclick="proposeWeek()">${t('suggestPlan')}</button>
+    </div>
   </div></div>`;
 }
 function previewCard(dateStr,w){
@@ -2321,9 +2320,11 @@ function generatePreviewSheet(){
     <h2 class="disp">${t('genPreviewTitle')}</h2>
     <div class="note" style="margin-bottom:14px">${genContextNote(S.offset)}<br>${t('genOverwriteWarn')}${prop.skippedForRace?'<br>'+t('genSkippedRaceDay'):''}</div>
     ${dates.map(ds=>previewCard(ds, prop.plan[ds][0])).join('')}
-    <button class="primary disp" onclick="applyGeneratedWeek()">${t('approveApply')}</button>
-    <button class="ghost" onclick="regenerateWeek()">${t('regenerate')}</button>
-    <button class="ghost" onclick="backToGenConfig()">${t('backToConfig')}</button>
+    <div style="display:flex; gap:8px">
+      <button class="ghost" style="margin:0; flex:1; padding-inline:6px" onclick="backToGenConfig()">${t('backToConfig')}</button>
+      <button class="ghost" style="margin:0; flex:1; padding-inline:6px" onclick="regenerateWeek()">${t('regenerate')}</button>
+      <button class="primary disp" style="margin:0; flex:1; padding-inline:6px" onclick="applyGeneratedWeek()">${t('approveApply')}</button>
+    </div>
   </div></div>`;
 }
 
@@ -2372,8 +2373,10 @@ function editorSheet(){
       ${d.cooldownSec>0? stepperHTML('cool', Math.round(d.cooldownSec/60))+timeStepChips() : ''}
     </div>`}
 
-    <button class="primary disp" onclick="saveWorkout()">${t('saveWorkout')}</button>
-    <button class="ghost" onclick="closeSheet()">${t('cancel')}</button>
+    <div style="display:flex; gap:8px">
+      <button class="ghost" style="margin:0; flex:1" onclick="closeSheet()">${t('cancel')}</button>
+      <button class="primary disp" style="margin:0; flex:1" onclick="saveWorkout()">${t('saveWorkout')}</button>
+    </div>
   </div></div>`;
 }
 /* +/- step size (in minutes) for time fields - one shared value (bump() and
@@ -2675,10 +2678,10 @@ function sendSheet(){
     ${res? `<div style="margin-bottom:10px">${res.map(r=>`<div class="res ${r.ok?'ok':'err'}">
         <span>${r.name} · ${r.date.slice(5)}</span><span class="mono">${r.ok?t('scheduled'):t('errorWord')}</span></div>`).join('')}</div>`:''}
 
-    <button class="primary disp" ${S.sheet.sending?'disabled':''} onclick="sendWeek()">${S.sheet.sending?`<span class="spinner"></span>${t('sendingWord')}`:(res?t('sendAgain'):t('sendToGarmin'))}</button>
-    <button class="ghost" onclick="showPayload()">${t('showPayload')}</button>
-    ${S.sheet.payload? `<div class="payload" style="margin-top:12px">${S.sheet.payload}</div>`:''}
-    <button class="ghost" onclick="closeSheet()">${t('close')}</button>
+    <div style="display:flex; gap:8px">
+      <button class="ghost" style="margin:0; flex:1" onclick="closeSheet()">${t('close')}</button>
+      <button class="primary disp" style="margin:0; flex:1" ${S.sheet.sending?'disabled':''} onclick="sendWeek()">${S.sheet.sending?`<span class="spinner"></span>${t('sendingWord')}`:(res?t('sendAgain'):t('sendToGarmin'))}</button>
+    </div>
   </div></div>`;
 }
 
@@ -2789,9 +2792,9 @@ function profileEditSheet(){
         </div>` : ''}
     </div>
 
-    <div class="drawersec">
-      <button class="primary disp" onclick="saveProfile()">${t('save')}</button>
-      <button class="ghost" onclick="backToProfile()">${t('close')}</button>
+    <div class="drawersec" style="display:flex; gap:8px">
+      <button class="ghost" style="margin:0; flex:1" onclick="backToProfile()">${t('close')}</button>
+      <button class="primary disp" style="margin:0; flex:1" onclick="saveProfile()">${t('save')}</button>
     </div>
   </div></div>`;
 }
@@ -2875,8 +2878,10 @@ function profileSheet(){
     </div>
 
     <div class="drawersec">
-      <button class="primary disp" onclick="saveProfile()">${t('save')}</button>
-      <button class="ghost" onclick="closeSheet()">${t('close')}</button>
+      <div style="display:flex; gap:8px">
+        <button class="ghost" style="margin:0; flex:1" onclick="closeSheet()">${t('close')}</button>
+        <button class="primary disp" style="margin:0; flex:1" onclick="saveProfile()">${t('save')}</button>
+      </div>
       <div class="mono" style="text-align:center; color:var(--muted); font-size:11px; margin-top:16px; direction:ltr">v${window.APP_VERSION||'?'}${window.APP_BUILD_TIME?' · '+window.APP_BUILD_TIME:''}</div>
     </div>
   </div></div>`;
@@ -2912,9 +2917,9 @@ function zonesSheet(){
     </div>
     <div class="field" style="margin-bottom:0"><label>${t('thrPace')}</label><input class="mono" dir="ltr" value="${p.thrPace||''}" placeholder="4:30" oninput="S.profile.thrPace=this.value"></div>
 
-    <div class="drawersec">
-      <button class="primary disp" onclick="saveProfile()">${t('save')}</button>
-      <button class="ghost" onclick="backToStats()">${t('close')}</button>
+    <div class="drawersec" style="display:flex; gap:8px">
+      <button class="ghost" style="margin:0; flex:1" onclick="backToStats()">${t('close')}</button>
+      <button class="primary disp" style="margin:0; flex:1" onclick="saveProfile()">${t('save')}</button>
     </div>
   </div></div>`;
 }
@@ -3575,9 +3580,8 @@ function buildPayload(){
   }));
   return { athlete:{ name:profileName(S.profile), maxHR:S.profile.maxHR, restHR:S.profile.restHR }, workouts };
 }
-function openSendWeek(){ S.sheet={mode:'send', payload:null, result:null, dates:weekDates(S.offset)}; render(); }
-function openSendDay(){ S.sheet={mode:'send', payload:null, result:null, dates:[weekDates(S.offset)[S.sel]]}; render(); }
-function showPayload(){ S.sheet.payload=JSON.stringify(buildPayload(),null,2); render(); }
+function openSendWeek(){ S.sheet={mode:'send', result:null, dates:weekDates(S.offset)}; render(); }
+function openSendDay(){ S.sheet={mode:'send', result:null, dates:[weekDates(S.offset)[S.sel]]}; render(); }
 async function sendWeek(){
   const url=BACKEND_URL;
   save();
