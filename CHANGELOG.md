@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.104 - 2026-09-14 16:33 - put auto-generate and duplicate week buttons side by side
+
 ## v1.0.103 - 2026-09-14 16:24 - add related_applications and display_override to manifest
 
 ## v1.0.102 - 2026-09-14 16:14 - add digital asset links for the android app to hide the chrome address bar
