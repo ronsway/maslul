@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.111 - 2026-09-14 17:03 - pack popup action buttons into rows remove json payload debug view
+
 ## v1.0.110 - 2026-09-14 16:56 - add real manifest shortcuts for add workout and send week
 
 ## v1.0.109 - 2026-09-14 16:48 - fix send to garmin popup flat bottom corners
