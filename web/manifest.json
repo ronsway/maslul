@@ -18,6 +18,20 @@
     { "platform": "play", "id": "app.vercel.maslul_web.twa" }
   ],
   "launch_handler": { "client_mode": "focus-existing" },
+  "shortcuts": [
+    {
+      "name": "הוסף אימון",
+      "short_name": "הוסף אימון",
+      "url": "/?shortcut=add",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "שלח שבוע לגרמין",
+      "short_name": "שלח שבוע",
+      "url": "/?shortcut=send",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

@@ -640,9 +640,22 @@ sb.auth.onAuthStateChange(async (event,session)=>{
   if(session && (event==='SIGNED_IN' || event==='INITIAL_SESSION') && !AUTHFORM.recovery){
     await loadCloudData(session.user.id);
     autoCheckCompleted(); // fire-and-forget background sync, doesn't block the render
+    runLaunchShortcut();
   }
   render();
 });
+/* manifest "shortcuts" (long-press the installed icon) land here as
+   ?shortcut=add|send on the very first load after sign-in - S.plan/S.profile
+   are loaded and S.sel already defaults to today, so the target sheet can
+   open immediately. Strip the param right after so a later refresh (or the
+   onAuthStateChange firing again on tab focus) doesn't replay it. */
+function runLaunchShortcut(){
+  const shortcut=new URLSearchParams(location.search).get('shortcut');
+  if(!shortcut) return;
+  history.replaceState(null,'',location.pathname);
+  if(shortcut==='add') openEditor();
+  else if(shortcut==='send') openSendWeek();
+}
 
 /* ============ i18n ============ */
 const DAYS={he:['א','ב','ג','ד','ה','ו','ש'], en:['Sun','Mon','Tue','Wed','Thu','Fri','Sat']};
