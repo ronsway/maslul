@@ -1780,8 +1780,10 @@ function render(){
 
   <div class="detail">
     ${renderDay(selDate)}
-    <button class="addbtn" onclick="openGenerate()"><span class="p">✨</span> ${t('autoGenerate')}</button>
-    <button class="addbtn" style="margin-top:6px" onclick="confirmDupWeek()"><span class="p">⧉</span> ${t('duplicateWeek')}</button>
+    <div style="display:flex; gap:8px">
+      <button class="addbtn" style="flex:1; padding-inline:8px" onclick="openGenerate()"><span class="p">✨</span> ${t('autoGenerate')}</button>
+      <button class="addbtn" style="flex:1; padding-inline:8px" onclick="confirmDupWeek()"><span class="p">⧉</span> ${t('duplicateWeek')}</button>
+    </div>
   </div>
 
   <div class="sendbar">
