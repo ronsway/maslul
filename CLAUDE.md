@@ -199,6 +199,72 @@ Verify Vercel routing on first deploy. If `/schedule-week` 404s, the FastAPI app
 still reachable at `/api/index`; adjust `server/vercel.json` rewrites or the app's
 backend URL accordingly.
 
+## Android packaging (APK)
+
+The PWA (already a proper installable app - `web/manifest.json` +
+`web/sw.js`) gets wrapped into a sideloadable Android APK via
+[PWABuilder](https://www.pwabuilder.com) (Google's Bubblewrap TWA builder
+under the hood) rather than a native rebuild - no Capacitor/Cordova, no
+separate codebase, since the project is deliberately zero-build vanilla JS.
+
+Flow: PWABuilder > enter `https://maslul-web.vercel.app` > Package For Stores
+> Android > Google Play > "Generate Package" with signing key "New". Downloads
+a zip containing `Maslul.apk` (sideload this), `Maslul.aab` (Play Store only,
+unused), `signing.keystore` + `signing-key-info.txt` (**keep these safe** -
+required for any future update of the same install, not just a replacement
+app), and `assetlinks.json`.
+
+That `assetlinks.json` is committed at `web/.well-known/assetlinks.json` -
+proves to Android that the TWA package (`app.vercel.maslul_web.twa`, declared
+in `manifest.json`'s `related_applications`) and this origin share the same
+owner, via the signing key's SHA-256 fingerprint. Without it the installed
+APK shows a Chrome address bar; with it, full standalone.
+
+Manifest fields added specifically for PWABuilder/Android (beyond the
+original PWA basics): `id`, `orientation`, `categories`,
+`prefer_related_applications`, `related_applications`, `launch_handler`
+(`focus-existing`), `display_override`, and `screenshots` (real app
+screenshots with seeded demo data, captured via the one-off
+`scripts/capture_screenshots.py` Playwright script - rerun by hand if the UI
+changes enough to need updated ones, not part of `deploy.bat`).
+`shortcuts` (long-press the installed icon for "add workout" / "send week")
+are wired to real behavior, not placeholders: they land as
+`?shortcut=add|send` on first load, handled once in `onAuthStateChange` by
+`runLaunchShortcut()` after cloud data loads, then stripped from the URL.
+
+Deliberately left alone (score independently as PWABuilder's "optional/
+enhancement" tier, don't fake them just to move the number): `file_handlers`,
+`protocol_handlers`, `share_target`, `widgets`, `edge_side_panel`,
+`note_taking`, `scope_extensions` (none apply to a single-purpose,
+single-origin running planner), and `iarc_rating_id` (only exists after a
+Play Store content-rating submission - not applicable to sideloading).
+
+Rebuilding the APK after a frontend change: just redo the PWABuilder flow
+above - no separate Android project to keep in sync, the manifest/assets are
+already right.
+
+## UI conventions
+
+- Popup/sheet trailing action buttons go in one flex row (`display:flex;
+  gap:8px`, each button `flex:1; margin:0`), never stacked vertically -
+  applies to every sheet, not just the obvious ones (see the `.sheet`/
+  `.drawer` templates in `web/index.html` for the pattern). Ghost/cancel-style
+  buttons come first in markup, the primary/confirm action last - matches the
+  existing delete-workout and duplicate-week confirm dialogs.
+- Action buttons packed into a row are text-only, no icons - with 2-3 buttons
+  sharing a row, an icon just eats space without adding clarity (removed from
+  add-workout/auto-generate/duplicate-week/send-day/send-week in v1.0.107
+  after first adding them in v1.0.106).
+- A short/variable-height sheet needs `.sheet.compact` (rounds all 4 corners)
+  or `.sheet.tall` (rounds all 4 with a deliberate bottom gap even when
+  maxed out) - the base `.sheet` class only rounds the top corners, meant for
+  content that reaches the viewport bottom. Forgetting the modifier shows a
+  flat, cut-off-looking bottom edge against the scrim.
+- No debug/dev-facing UI in the app itself (e.g. a "show JSON payload" button
+  was removed in v1.0.111 - no value to the end user, use the browser's
+  network tab or a local script instead if payload inspection is ever needed
+  again).
+
 ## Roadmap (in order)
 
 1. DONE - backend deployed to Vercel.
@@ -207,9 +273,14 @@ backend URL accordingly.
    crossfit (v1.0.55+). See "Key decisions" #4 for the sport/kind model.
 4. DONE - per-user Garmin connections (2026-08), replacing the single global
    `GARTH_TOKEN`. See "Garmin auth (per user)".
-5. Nice-to-haves (next up): workout templates/library, target pace/HR zones from
-   the profile, duplicating a week, editing an already-pushed week (delete +
-   re-upload).
+5. DONE - duplicate last week (v1.0.96): `confirmDupWeek()`/`applyDupWeek()` in
+   `web/index.html`, copies `S.plan` day-for-day from `weekDates(offset-1)` onto
+   the current week, skipping race-linked workouts and resetting
+   `garminWorkoutId`/`done`/`actual` on the copies.
+6. DONE - Android packaging (v1.0.96-v1.0.110). See "Android packaging (APK)"
+   below.
+7. Nice-to-haves (next up): workout templates/library, target pace/HR zones from
+   the profile, editing an already-pushed week (delete + re-upload).
 
 ## Owner working preferences
 
