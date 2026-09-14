@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.110 - 2026-09-14 16:56 - add real manifest shortcuts for add workout and send week
+
 ## v1.0.109 - 2026-09-14 16:48 - fix send to garmin popup flat bottom corners
 
 ## v1.0.108 - 2026-09-14 16:45 - color the garmin sync icon orange for visibility
