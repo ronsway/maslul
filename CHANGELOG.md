@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.112 - 2026-09-14 17:20 - fix stored xss escape all free text user input in rendered html
+
 ## v1.0.111 - 2026-09-14 17:03 - pack popup action buttons into rows remove json payload debug view
 
 ## v1.0.110 - 2026-09-14 16:56 - add real manifest shortcuts for add workout and send week
