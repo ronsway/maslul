@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.102 - 2026-09-14 16:14 - add digital asset links for the android app to hide the chrome address bar
+
 ## v1.0.101 - 2026-09-14 16:04 - add manifest screenshots for pwa store listing
 
 ## v1.0.100 - 2026-09-14 16:00 - add launch_handler focus-existing to manifest
