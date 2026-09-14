@@ -1,14 +1,18 @@
 {
+  "id": "/",
   "name": "Maslul",
   "short_name": "Maslul",
   "description": "מתכנן אימוני ריצה עם שליחה לגרמין",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#0E1116",
   "theme_color": "#0E1116",
   "dir": "rtl",
   "lang": "he",
+  "categories": ["health", "fitness", "sports"],
+  "prefer_related_applications": false,
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
