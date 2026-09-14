@@ -60,7 +60,7 @@
   .brand h1{font-family:'Rubik'; font-weight:800; font-size:26px; margin:0; letter-spacing:-.5px;}
   .brand .tick{width:11px; height:11px; border-radius:3px;
     background:linear-gradient(135deg,var(--work),var(--warm)); transform:translateY(-2px);}
-  .greeting{font-family:'Rubik'; font-weight:700; font-size:19px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .greeting{font-family:'Rubik'; font-weight:700; font-size:16px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .profbtn{position:relative; width:40px; height:40px; border-radius:50%; background:var(--panel2);
     border:1px solid var(--line); display:grid; place-items:center; font-weight:700; font-size:15px; overflow:hidden; flex:none;}
   .profbtn img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
@@ -1450,7 +1450,7 @@ function profileName(p){ return S.lang==='he'? (p.nameHe||p.nameEn||'') : (p.nam
 function greeting(){
   const h=new Date().getHours();
   const key = h<5? 'greetNight' : h<12? 'greetMorning' : h<17? 'greetAfternoon' : h<21? 'greetEvening' : 'greetNight';
-  const name=profileName(S.profile);
+  const name=profileName(S.profile).trim().split(/\s+/)[0]||'';
   return name? `${t(key)}, ${name}` : t(key);
 }
 function save(){
