@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.97 - 2026-09-14 04:56 - time of day greeting header move brand to menu
+
 ## v1.0.96 - 2026-09-13 14:16 - add duplicate last week button
 
 ## v1.0.95 - 2026-09-13 13:51 - Orange buttons now consistently mean send or commit data
