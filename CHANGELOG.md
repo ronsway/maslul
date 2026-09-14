@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.106 - 2026-09-14 16:40 - add send icon to send day and send week to garmin buttons
+
 ## v1.0.105 - 2026-09-14 16:37 - pack all action buttons into two rows instead of stacking
 
 ## v1.0.104 - 2026-09-14 16:33 - put auto-generate and duplicate week buttons side by side
