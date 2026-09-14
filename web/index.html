@@ -1773,16 +1773,16 @@ function render(){
   </div>
 
   <div style="padding:14px 18px 4px; display:flex; gap:8px">
-    <button class="addbtn" style="flex:1; padding-inline:8px" onclick="openEditor()"><span class="p">+</span> ${t('addWorkout')}</button>
-    ${dayHasWorkouts?`<button class="primary disp" style="flex:1; margin:0; padding-inline:8px" onclick="openSendDay()">${sendIcon()} ${t('sendThisDay')}</button>`:''}
+    <button class="addbtn" style="flex:1; padding-inline:8px" onclick="openEditor()">${t('addWorkout')}</button>
+    ${dayHasWorkouts?`<button class="primary disp" style="flex:1; margin:0; padding-inline:8px" onclick="openSendDay()">${t('sendThisDay')}</button>`:''}
   </div>
 
   <div class="detail">
     ${renderDay(selDate)}
     <div style="display:flex; gap:8px">
-      <button class="addbtn" style="flex:1; padding-inline:8px" onclick="openGenerate()"><span class="p">✨</span> ${t('autoGenerate')}</button>
-      <button class="addbtn" style="flex:1; padding-inline:8px" onclick="confirmDupWeek()"><span class="p">⧉</span> ${t('duplicateWeek')}</button>
-      <button class="send" style="flex:1; width:auto; padding-inline:8px" ${weekHasWorkouts?'':'disabled'} onclick="openSendWeek()">${sendIcon()} ${t('sendWeek')}</button>
+      <button class="addbtn" style="flex:1; padding-inline:8px" onclick="openGenerate()">${t('autoGenerate')}</button>
+      <button class="addbtn" style="flex:1; padding-inline:8px" onclick="confirmDupWeek()">${t('duplicateWeek')}</button>
+      <button class="send" style="flex:1; width:auto; padding-inline:8px" ${weekHasWorkouts?'':'disabled'} onclick="openSendWeek()">${t('sendWeek')}</button>
     </div>
   </div>
   ${renderSheet()}`;
@@ -2879,7 +2879,6 @@ function nextRaceSummary(p){
   const r=races[0], d=daysUntil(r.date);
   return r.name+' · '+(d>0? '+'+d+' '+t('daysWord') : (d===0? t('raceToday') : t('racePast')));
 }
-function sendIcon(){ return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`; }
 function drillArrow(){ return S.lang==='he'?'‹':'›'; }
 function backArrow(){ return S.lang==='he'?'›':'‹'; }
 function isIOSDevice(){ return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream; }
