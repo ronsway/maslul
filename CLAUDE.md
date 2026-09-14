@@ -284,7 +284,12 @@ already right.
 
 ## Owner working preferences
 
-- Hebrew for UI and personal-facing text; English is fine for code and technical docs.
+- Hebrew for UI and personal-facing text; English is fine for code and
+  technical docs - `README.md` specifically should be English (was Hebrew
+  until 2026-09, corrected on request).
+- Repo is private on GitHub; the app has an explicit proprietary "all rights
+  reserved" `LICENSE` (added 2026-09, not MIT/GPL - deliberate choice, don't
+  swap it without asking).
 - Terse and directive. Wants proactive execution and expert guidance, not meandering.
 - Clean formatting, no em dashes, no decorative check marks.
 - GitHub username: `ronsway`, comfortable with GitHub Pages.

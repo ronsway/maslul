@@ -1,30 +1,39 @@
-# מסלול (Maslul)
+# Maslul (מסלול)
 
-מתכנן אימוני ריצה אישי שדוחף אימונים מובנים לשעון גרמין.
+A personal running training planner that pushes structured workouts to a
+Garmin watch.
 
-כל משתמש מחבר את חשבון הגרמין שלו ומקבל תוכנית משלו, מסונכרנת בענן (Supabase).
-לא מוצר ציבורי - לבעלים ולכמה אנשים קרובים.
+Each user connects their own Garmin account and gets their own plan, synced
+to the cloud (Supabase). Not a public product - for the owner and a few
+trusted people.
 
-## מבנה
-- `web/index.html` - האפליקציה (PWA, עברית RTL, קובץ יחיד ללא build).
-  כולל `manifest.json`, `sw.js`, אייקונים וצילומי מסך לחנויות אפליקציות.
-- `server/` - ה-backend (FastAPI ל-Vercel) שמתרגם ומתזמן אימונים בגרמין,
-  ומנהל את חיבורי הגרמין הפרטיים של כל משתמש (`server/api/garmin_auth.py`).
-- `scripts/generate_token.py` - יצירת טוקן גרמין מקומית (למקרה של אתגר MFA
-  שההרשמה הרגילה באפליקציה לא תומכת בו).
-- `scripts/capture_screenshots.py` - צילומי מסך לחנות (Playwright, חד-פעמי).
-- `deploy.bat` - workflow הפריסה הרגיל: מעלה גרסה, פורס backend+frontend ל-Vercel,
-  ואז מבצע commit+push. ראו `CHANGELOG.md` להיסטוריית הפריסות.
-- `CLAUDE.md` - ההקשר המלא לפרויקט: מודל האימונים, אימות גרמין פר-משתמש,
-  ארוז ל-APK אנדרואיד, קונבנציות UI, ועוד.
+## Structure
+- `web/index.html` - the app (PWA, Hebrew RTL, single file, no build step).
+  Includes `manifest.json`, `sw.js`, icons, and app-store screenshots.
+- `server/` - the backend (FastAPI on Vercel) that translates and schedules
+  workouts on Garmin, and manages each user's private Garmin connection
+  (`server/api/garmin_auth.py`).
+- `scripts/generate_token.py` - generates a Garmin token locally (for the MFA
+  case the in-app connect flow can't handle).
+- `scripts/capture_screenshots.py` - app-store screenshots (Playwright, one-off).
+- `deploy.bat` - the normal deploy workflow: bumps the version, deploys
+  backend+frontend to Vercel, then commits+pushes. See `CHANGELOG.md` for
+  deploy history.
+- `CLAUDE.md` - full project context: the workout data model, per-user Garmin
+  auth, Android APK packaging, UI conventions, and more.
 
-## התחלה מהירה
-1. פרוס את `server/` ל-Vercel (root directory: `server/`), הוסף את משתני הסביבה
+## Quick start
+1. Deploy `server/` to Vercel (root directory: `server/`), add the env vars
    `GARMIN_TOKEN_ENCRYPTION_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
-   `SUPABASE_SERVICE_ROLE_KEY` (פרטים ב-`CLAUDE.md`).
-2. הרץ פעם אחת את `server/sql/garmin_connections.sql` ב-Supabase SQL editor.
-3. פרסם את `web/` (GitHub Pages או Vercel static).
-4. כל משתמש מתחבר עם Google/Email ומחבר את חשבון הגרמין שלו מתוך Settings >
-   Garmin באפליקציה - אין יותר טוקן גלובלי אחד להגדיר.
+   `SUPABASE_SERVICE_ROLE_KEY` (details in `CLAUDE.md`).
+2. Run `server/sql/garmin_connections.sql` once in the Supabase SQL editor.
+3. Publish `web/` (GitHub Pages or Vercel static).
+4. Each user signs in with Google/email and connects their own Garmin account
+   from Settings > Garmin in the app - no single global token to configure.
 
-לפריסות הבאות, פשוט `deploy.bat` מהשורש. פרטים מלאים ב-`CLAUDE.md`.
+For later deploys, just run `deploy.bat` from the repo root. Full details in
+`CLAUDE.md`.
+
+## License
+
+All rights reserved - see [LICENSE](LICENSE).
