@@ -107,7 +107,7 @@
   .day .dot{width:6px; height:6px; border-radius:50%;}
 
   /* ---- day detail ---- */
-  .detail{padding:14px 18px 4px;}
+  .detail{padding:14px 18px calc(16px + env(safe-area-inset-bottom));}
 
   .empty{border:1.5px dashed var(--line); border-radius:16px; padding:26px 18px;
     text-align:center; color:var(--muted);}
@@ -250,7 +250,6 @@
   .addbtn:active{background:var(--panel2);}
 
   /* ---- send bar ---- */
-  .sendbar{padding:16px 18px calc(16px + env(safe-area-inset-bottom));}
   .send{width:100%; padding:15px; border-radius:15px; font-family:'Rubik'; font-weight:800; font-size:16px;
     background:linear-gradient(135deg,var(--work),#ff7b45); color:#1a0d09;
     display:flex; align-items:center; justify-content:center; gap:9px; box-shadow:0 6px 22px rgba(255,90,60,.32);}
@@ -1773,9 +1772,9 @@ function render(){
     }).join('')}
   </div>
 
-  <div style="padding:14px 18px 4px">
-    <button class="addbtn" onclick="openEditor()"><span class="p">+</span> ${t('addWorkout')}</button>
-    ${dayHasWorkouts?`<button class="primary disp" style="margin-top:8px" onclick="openSendDay()">${t('sendThisDay')}</button>`:''}
+  <div style="padding:14px 18px 4px; display:flex; gap:8px">
+    <button class="addbtn" style="flex:1; padding-inline:8px" onclick="openEditor()"><span class="p">+</span> ${t('addWorkout')}</button>
+    ${dayHasWorkouts?`<button class="primary disp" style="flex:1; margin:0; padding-inline:8px" onclick="openSendDay()">${t('sendThisDay')}</button>`:''}
   </div>
 
   <div class="detail">
@@ -1783,13 +1782,8 @@ function render(){
     <div style="display:flex; gap:8px">
       <button class="addbtn" style="flex:1; padding-inline:8px" onclick="openGenerate()"><span class="p">✨</span> ${t('autoGenerate')}</button>
       <button class="addbtn" style="flex:1; padding-inline:8px" onclick="confirmDupWeek()"><span class="p">⧉</span> ${t('duplicateWeek')}</button>
+      <button class="send" style="flex:1; width:auto; padding-inline:8px" ${weekHasWorkouts?'':'disabled'} onclick="openSendWeek()">${t('sendWeek')}</button>
     </div>
-  </div>
-
-  <div class="sendbar">
-    <button class="send" ${weekHasWorkouts?'':'disabled'} onclick="openSendWeek()">
-      ${t('sendWeek')}
-    </button>
   </div>
   ${renderSheet()}`;
 
