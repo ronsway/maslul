@@ -2649,7 +2649,7 @@ function sendSheet(){
   const dates=S.sheet.dates||weekDates(S.offset);
   const items=[]; dates.forEach(d=>dayWorkouts(d).forEach(w=>items.push({date:ymd(d),w})));
   const res=S.sheet.result;
-  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet${sheetEntering()}">
+  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet tall${sheetEntering()}">
     <div class="grab"></div>
     <h2 class="disp">${t('sendTitle')}</h2>
     <div class="note">${t('sendNote')}</div>
