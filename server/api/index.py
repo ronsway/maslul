@@ -21,7 +21,7 @@ Vercel picks up the module-level `app` (ASGI). See vercel.json for routing.
 Local run (optional): uvicorn api.index:app --reload --port 8000
 """
 
-from typing import List, Optional, Literal
+from typing import Optional
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,6 +44,8 @@ try:
         verify_user, get_client_for_user, save_connection, mark_synced,
         disconnect as disconnect_connection, get_connection, NeedsReauth,
     )
+    from models import Seg, Block, StrengthExercise, Workout, WeekPayload
+    from coach import CoachChatBody, run_chat
 except ImportError:
     # Local `uvicorn api.index:app` (documented above) loads this as the
     # api.index submodule of a package instead - needs the relative form.
@@ -51,52 +53,14 @@ except ImportError:
         verify_user, get_client_for_user, save_connection, mark_synced,
         disconnect as disconnect_connection, get_connection, NeedsReauth,
     )
+    from .models import Seg, Block, StrengthExercise, Workout, WeekPayload
+    from .coach import CoachChatBody, run_chat
 
 app = FastAPI(title="Maslul Garmin Backend")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
-
-# ---------- request model (matches buildPayload in web/index.html) ----------
-
-class Seg(BaseModel):
-    mode: Literal["time", "dist"]
-    value: int                       # seconds if time, meters if dist
-
-class Block(BaseModel):
-    kind: Literal["repeat", "steady"]
-    reps: Optional[int] = None
-    work: Optional[Seg] = None
-    recovery: Optional[Seg] = None
-    mode: Optional[str] = None
-    value: Optional[int] = None
-    pace: Optional[float] = None     # seconds per km target, steady+dist blocks only (e.g. race splits)
-
-class StrengthExercise(BaseModel):
-    category: str                    # Garmin exercise category, e.g. "SQUAT" - see garminconnect.exercises
-    sets: int
-    reps: int
-    weightKg: Optional[float] = None
-    restSec: float
-
-class Workout(BaseModel):
-    date: str                        # "YYYY-MM-DD"
-    name: str
-    type: str
-    sport: str = "running"
-    warmupSec: int = 0
-    cooldownSec: int = 0
-    blocks: List[Block] = []
-    exercises: List[StrengthExercise] = []   # sport in ("strength", "crossfit")
-    wodFormat: Optional[str] = None         # crossfit only: "forTime" | "amrap" | "emom"
-    wodCapMin: Optional[int] = None         # crossfit amrap: time cap in minutes
-    wodMinutes: Optional[int] = None        # crossfit emom: total duration in minutes
-    garminWorkoutId: Optional[int] = None   # id from a previous send, so it can be replaced instead of duplicated
-
-class WeekPayload(BaseModel):
-    athlete: Optional[dict] = None
-    workouts: List[Workout] = []
 
 # ---------- Garmin auth via stored token ----------
 
@@ -499,3 +463,10 @@ def activity_splits(activityId: str, authorization: Optional[str] = Header(defau
             "calories": lap.get("calories"),
         })
     return {"splits": splits}
+
+# ---------- AI coach chat ----------
+
+@app.post("/coach/chat")
+def coach_chat(body: CoachChatBody, authorization: Optional[str] = Header(default=None)):
+    verify_user(authorization)  # every route needs a valid session, even though the reply is stateless
+    return run_chat(body)

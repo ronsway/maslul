@@ -464,6 +464,13 @@
   .res.ok{background:var(--res-ok-bg); border:1px solid var(--res-ok-border); color:var(--res-ok-text);}
   .res.err{background:var(--res-err-bg); border:1px solid var(--res-err-border); color:var(--res-err-text);}
 
+  /* ---- AI coach chat ---- */
+  .chatlist{display:flex; flex-direction:column; gap:8px; margin-bottom:4px;}
+  .chatmsg{border-radius:14px; padding:10px 13px; font-size:14px; line-height:1.5; max-width:88%; white-space:pre-wrap;}
+  .chatmsg.user{align-self:flex-end; background:var(--work); color:#1a0d09; font-weight:600;}
+  .chatmsg.assistant{align-self:flex-start; background:var(--panel); border:1px solid var(--line); color:var(--txt); display:flex; align-items:center; gap:8px;}
+  .chatproposal{background:var(--panel2); border:1px solid var(--line); border-radius:14px; padding:12px; margin-top:10px;}
+
   /* ---- run detail: stat grid + split rows ---- */
   .actualnote{width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px;
     font-size:12.5px; line-height:1.5; text-align:start; color:var(--txt); font-weight:600;
@@ -753,6 +760,18 @@ const T={
   secSettingsGroup:{he:'הגדרות', en:'Settings'},
   secAccountsGroup:{he:'חשבונות מקושרים', en:'Linked accounts'},
   roadmapMenuSub:{he:'תכנית שבועית לקראת המרוץ הבא', en:'Weekly plan toward your next race'},
+  coachTitle:{he:'מאמן AI', en:'AI coach'},
+  coachMenuSub:{he:'ספר איך אתה מרגיש - נעדכן את התוכנית', en:'Tell it how you feel - it can adjust your plan'},
+  coachIntro:{he:'ספר לי איך אתה מרגיש - עייף, פצוע, בלחץ זמן, או פשוט תשאל אותי משהו על התוכנית.', en:'Tell me how you feel - tired, injured, short on time, or just ask me something about your plan.'},
+  coachInputPlaceholder:{he:'איך אתה מרגיש היום?', en:"How are you feeling today?"},
+  coachSendBtn:{he:'שלח', en:'Send'},
+  coachThinking:{he:'המאמן חושב...', en:'Coach is thinking...'},
+  coachErrorMsg:{he:'משהו השתבש. נסה שוב.', en:'Something went wrong. Try again.'},
+  coachProposedTitle:{he:'הצעת שינוי לתוכנית', en:'Proposed plan change'},
+  coachApply:{he:'אשר ועדכן', en:'Approve & update'},
+  coachDismiss:{he:'התעלם', en:'Dismiss'},
+  coachApplied:{he:'התוכנית עודכנה', en:'Plan updated'},
+  coachRestDay:{he:'יום מנוחה', en:'Rest day'},
   statsMenuSub:{he:'מגמות ונפח לאורך זמן', en:'Trends and volume over time'},
   secProfile:{he:'פרופיל', en:'Profile'},
   secZones:{he:'איזורי אימון', en:'Training zones'},
@@ -1928,6 +1947,7 @@ function renderSheet(){
   if(S.sheet.mode==='accounts') return accountsSheet();
   if(S.sheet.mode==='profileEdit') return profileEditSheet();
   if(S.sheet.mode==='prefs') return prefsSheet();
+  if(S.sheet.mode==='coach') return coachSheet();
   return `<div class="scrim"></div>`;
 }
 function openStats(){ if(S.sheet && S.sheet.mode==='stats') return; S.sheet={mode:'stats'}; render(); }
@@ -2841,6 +2861,13 @@ function profileSheet(){
     <div class="brand" style="margin-bottom:16px"><h1 class="disp" style="font-size:20px">Maslul</h1><span class="tick"></span></div>
 
     <div class="drawersec" style="margin-top:0; border-top:none; padding-top:0">
+      <button class="navrow" onclick="openCoach()">
+        <div style="display:flex; align-items:center; min-width:0">
+          <span class="nricon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>
+          <div><div class="nrt">${t('coachTitle')}</div><div class="nrs">${t('coachMenuSub')}</div></div>
+        </div>
+        <span class="nrarrow">${drillArrow()}</span>
+      </button>
       <button class="navrow" onclick="openRaces()">
         <div style="display:flex; align-items:center; min-width:0">
           <span class="nricon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V4"/><path d="M4 4h11l-2 4 2 4H4"/></svg></span>
@@ -3122,6 +3149,110 @@ function openZones(){ if(S.sheet && S.sheet.mode==='zones') return; S.sheet={mod
 function openRaces(){ if(S.sheet && S.sheet.mode==='races') return; S.sheet={mode:'races', view:'list', raceDraft:{date:'',name:'',km:'',target:'',split:'negative',terrain:'road'}}; render(); }
 function openProfileEdit(){ if(S.sheet && S.sheet.mode==='profileEdit') return; S.sheet={mode:'profileEdit', photoMenuOpen:false}; render(); }
 function openPrefs(){ if(S.sheet && S.sheet.mode==='prefs') return; S.sheet={mode:'prefs'}; render(); }
+
+/* ---- AI coach chat ----
+   Sends the full conversation + a fresh context snapshot (profile, this
+   week's plan, recent load) to POST /coach/chat on every turn - the backend
+   is stateless like every other route here. A proposed plan change only
+   ever gets shown as a preview (reusing previewCard(), same as the
+   auto-generate flow); applyCoachChanges() is the only path that actually
+   touches S.plan, and only on an explicit tap. */
+function openCoach(){
+  if(S.sheet && S.sheet.mode==='coach') return;
+  S.sheet={mode:'coach', messages:[], sending:false, proposedChanges:null, error:null};
+  render();
+}
+function buildCoachContext(){
+  const wk=weekDates(S.offset);
+  const weekWorkouts=wk.map(d=>({
+    date: ymd(d),
+    workouts: dayWorkouts(d).map(w=>({
+      date: ymd(d), name:w.name, type:w.type, sport:w.sport||'running',
+      warmupSec:w.warmupSec||0, cooldownSec:w.cooldownSec||0,
+      blocks:w.blocks||[], exercises:w.exercises||[],
+    })),
+  }));
+  const race=nextRace(S.offset);
+  return {
+    profile:{maxHR:S.profile.maxHR||null, restHR:S.profile.restHR||null, thrPace:S.profile.thrPace||null},
+    upcomingRace: race? {name:race.name, date:race.date, km:race.km, terrain:race.terrain} : null,
+    weekWorkouts,
+    recentStats:{
+      thisWeek:weekStats(S.offset), lastWeek:weekStats(S.offset-1), twoWeeksAgo:weekStats(S.offset-2),
+      thisMonth:monthStats(),
+    },
+  };
+}
+function scrollSheetToBottom(){ const el=document.querySelector('.sheet'); if(el) el.scrollTop=el.scrollHeight; }
+async function coachSend(){
+  const input=document.getElementById('coachInput');
+  const text=(input?input.value:'').trim();
+  if(!text || S.sheet.sending) return;
+  S.sheet.messages.push({role:'user', content:text});
+  S.sheet.sending=true; S.sheet.proposedChanges=null; S.sheet.error=null;
+  render(); scrollSheetToBottom();
+  try{
+    const r=await fetch(`${BACKEND_BASE}/coach/chat`,{method:'POST',
+      headers:{'Content-Type':'application/json', ...authHeaders()},
+      body:JSON.stringify({messages:S.sheet.messages, context:buildCoachContext()})});
+    const data=await r.json();
+    if(!r.ok) throw new Error(data.detail||r.statusText);
+    S.sheet.messages.push({role:'assistant', content:data.reply});
+    S.sheet.proposedChanges=data.proposedChanges||null;
+  }catch(e){
+    S.sheet.error=t('coachErrorMsg');
+  }
+  S.sheet.sending=false;
+  render(); scrollSheetToBottom();
+}
+function applyCoachChanges(){
+  const changes=S.sheet.proposedChanges; if(!changes) return;
+  changes.forEach(c=>{
+    if(!c.workouts.length){ delete S.plan[c.date]; return; }
+    S.plan[c.date]=c.workouts.map(w=>{ const {date,...rest}=w; return {...rest, id:uid(), done:false, garminWorkoutId:null}; });
+  });
+  S.sheet.proposedChanges=null;
+  S.sheet.messages.push({role:'assistant', content:t('coachApplied')});
+  save(); render(); scrollSheetToBottom();
+}
+function dismissCoachChanges(){ S.sheet.proposedChanges=null; render(); }
+function coachSheet(){
+  const {messages, sending, proposedChanges, error}=S.sheet;
+  const bubbles=messages.length
+    ? messages.map(m=>`<div class="chatmsg ${m.role}">${esc(m.content)}</div>`).join('')
+    : `<div class="note">${t('coachIntro')}</div>`;
+  const proposedHtml = proposedChanges? `<div class="chatproposal">
+      <div class="minilbl" style="margin-bottom:8px">${t('coachProposedTitle')}</div>
+      ${proposedChanges.map(c=>{
+        const d=new Date(c.date+'T00:00:00');
+        const label=`${DAYS[S.lang][d.getDay()]} ${d.getDate()}/${d.getMonth()+1}`;
+        const body=c.workouts.length
+          ? c.workouts.map(w=>previewCard(c.date,w)).join('')
+          : `<div class="card"><div class="top"><span class="badge" style="background:var(--panel2)">${t('coachRestDay')}</span></div></div>`;
+        return `<div class="mono minilbl" style="margin:10px 0 4px">${label}</div>${body}`;
+      }).join('')}
+      <div style="display:flex; gap:8px; margin-top:10px">
+        <button class="ghost" style="margin:0; flex:1" onclick="dismissCoachChanges()">${t('coachDismiss')}</button>
+        <button class="primary disp" style="margin:0; flex:1" onclick="applyCoachChanges()">${t('coachApply')}</button>
+      </div>
+    </div>` : '';
+  return `<div class="scrim on" onclick="if(event.target===this)closeSheet()"><div class="sheet tall${sheetEntering()}">
+    <div class="grab"></div>
+    <h2 class="disp">${t('coachTitle')}</h2>
+    <div class="chatlist">
+      ${bubbles}
+      ${sending? `<div class="chatmsg assistant"><span class="spinner"></span>${t('coachThinking')}</div>` : ''}
+    </div>
+    ${error? `<div class="note" style="color:var(--work); margin-bottom:4px">${error}</div>` : ''}
+    ${proposedHtml}
+    <div style="display:flex; gap:8px; margin-top:10px">
+      <input id="coachInput" placeholder="${t('coachInputPlaceholder')}" onkeydown="if(event.key==='Enter'){event.preventDefault();coachSend();}" ${sending?'disabled':''}
+        style="flex:1; background:var(--panel); border:1px solid var(--line); color:var(--txt); border-radius:12px; padding:12px; font-family:'Assistant'; font-size:15px;">
+      <button class="primary disp" style="margin:0; width:auto; padding-inline:18px" onclick="coachSend()" ${sending?'disabled':''}>${t('coachSendBtn')}</button>
+    </div>
+    <button class="ghost" onclick="closeSheet()">${t('close')}</button>
+  </div></div>`;
+}
 function backToProfile(){ save(); S.sheet={mode:'profile'}; render(); }
 function backToStats(){ save(); S.sheet={mode:'stats'}; render(); }
 function saveProfile(){

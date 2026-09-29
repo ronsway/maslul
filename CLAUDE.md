@@ -167,6 +167,10 @@ strength and crossfit.
 - `SUPABASE_SERVICE_ROLE_KEY` (required) - Supabase dashboard > Settings >
   API. Bypasses RLS for the backend's `garmin_connections` reads/writes.
   Never expose this to the frontend.
+- `ANTHROPIC_API_KEY` (required for the AI coach chat) - from an Anthropic
+  Console account. Billed per token to whoever's account owns this key - see
+  "AI coach chat" below. `/coach/chat` returns a clear 500 if unset; every
+  other route works fine without it.
 
 ## Deploy
 
@@ -198,6 +202,42 @@ static host. CORS on the backend is open, so any origin works.
 Verify Vercel routing on first deploy. If `/schedule-week` 404s, the FastAPI app is
 still reachable at `/api/index`; adjust `server/vercel.json` rewrites or the app's
 backend URL accordingly.
+
+## AI coach chat
+
+A chat sheet (menu > "מאמן AI", `openCoach()`/`coachSheet()` in `web/index.html`)
+lets the athlete describe how they actually feel ("my knee hurts", "I'm
+exhausted") and get a response from Claude - either plain advice, or a
+concrete proposed change to that week's plan, shown as a preview (reusing
+`previewCard()`, same visual as the auto-generate flow) that the athlete
+must explicitly approve (`applyCoachChanges()`) before it touches `S.plan` -
+matches the approve-before-apply convention in "UI conventions" above.
+
+**Backend** (`server/api/coach.py`, wired into `index.py`'s
+`/coach/chat` route): calls `claude-sonnet-5-5` (chosen over Opus for cost -
+the owner opted for the cheaper tier; this is a per-token cost billed to
+whoever's Anthropic account owns `ANTHROPIC_API_KEY`, shared across every
+user of the app, not per-user - see "Environment variables"). Sends the full
+conversation plus a fresh context snapshot each turn (profile zones,
+upcoming race, the visible week's plan, recent weeks' planned/done km) built
+by `buildCoachContext()` on the frontend - the backend itself is stateless,
+same as every other route.
+
+The model can call a `propose_plan_changes` tool to suggest concrete
+changes. That tool is deliberately **not** `strict: true` with a hand-written
+exhaustive JSON schema - its input is validated against the same `Workout`
+Pydantic model `/schedule-week` already uses (moved to `server/api/models.py`
+specifically so `coach.py` can import it without a circular dependency on
+`index.py`), so there's exactly one definition of a valid workout. A
+malformed tool call, or one proposing a date outside the week the frontend
+sent, is dropped silently (the conversational reply still comes through)
+rather than ever reaching the frontend as an applyable proposal. An empty
+`workouts` list for a date means "rest day" (clears that date).
+
+Chat history is session-only (kept in `S.sheet.messages`, not persisted to
+Supabase) - reopening the coach starts a fresh conversation. Not worth
+persisting for a personal app; revisit if that turns out to matter in
+practice.
 
 ## Android packaging (APK)
 
@@ -289,7 +329,8 @@ already right.
    `garminWorkoutId`/`done`/`actual` on the copies.
 6. DONE - Android packaging (v1.0.96-v1.0.110). See "Android packaging (APK)"
    below.
-7. Nice-to-haves (next up): workout templates/library, target pace/HR zones from
+7. DONE - AI coach chat, Claude Sonnet 5.5. See "AI coach chat" below.
+8. Nice-to-haves (next up): workout templates/library, target pace/HR zones from
    the profile, editing an already-pushed week (delete + re-upload).
 
 ## Owner working preferences
