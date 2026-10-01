@@ -5,6 +5,8 @@ Newest first. Entries are added automatically by `scripts/bump_version.js`
 
 `## vX.Y.Z - YYYY-MM-DD HH:MM - message`
 
+## v1.0.115 - 2026-10-01 14:24 - fix deprecated meta tag commit lazy import fix
+
 ## v1.0.114 - 2026-09-29 15:54 - fix backend regression lazy import anthropic to isolate coach route
 
 ## v1.0.113 - 2026-09-29 15:49 - add AI coach chat with claude sonnet 5.5
