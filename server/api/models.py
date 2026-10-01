@@ -48,3 +48,39 @@ class Workout(BaseModel):
 class WeekPayload(BaseModel):
     athlete: Optional[dict] = None
     workouts: List[Workout] = []
+
+
+# ---------- AI coach chat (server/api/coach.py) ----------
+# Kept here rather than in coach.py so index.py can import the request model
+# (needed at route-registration time) without importing coach.py itself at
+# module load - coach.py pulls in the anthropic package, and every route
+# shares one warm Lambda process, so an eagerly-imported heavy/optional
+# dependency would run on every cold start regardless of which route is hit.
+# index.py instead imports coach.run_chat lazily, inside the /coach/chat
+# handler, so anthropic is only ever touched by a request that actually needs it.
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+class CoachContext(BaseModel):
+    """Loose by design (plain dicts, not the full Workout model) - this only
+    ever gets formatted into prompt text, never parsed back, so it doesn't
+    need to be kept in lockstep with the strict schema the way the tool
+    output does."""
+    profile: dict = {}
+    upcomingRace: Optional[dict] = None
+    weekWorkouts: List[dict] = []   # [{date, workouts: [...]}, ...] for the visible week
+    recentStats: dict = {}          # this/last/two-weeks-ago planned+done km, month totals
+
+class CoachChatBody(BaseModel):
+    messages: List[ChatMessage]
+    context: CoachContext
+
+class ProposedDayChange(BaseModel):
+    date: str
+    workouts: List[Workout]
+
+class CoachChatResponse(BaseModel):
+    reply: str
+    proposedChanges: Optional[List[ProposedDayChange]] = None

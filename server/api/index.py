@@ -44,8 +44,7 @@ try:
         verify_user, get_client_for_user, save_connection, mark_synced,
         disconnect as disconnect_connection, get_connection, NeedsReauth,
     )
-    from models import Seg, Block, StrengthExercise, Workout, WeekPayload
-    from coach import CoachChatBody, run_chat
+    from models import Seg, Block, StrengthExercise, Workout, WeekPayload, CoachChatBody
 except ImportError:
     # Local `uvicorn api.index:app` (documented above) loads this as the
     # api.index submodule of a package instead - needs the relative form.
@@ -53,8 +52,7 @@ except ImportError:
         verify_user, get_client_for_user, save_connection, mark_synced,
         disconnect as disconnect_connection, get_connection, NeedsReauth,
     )
-    from .models import Seg, Block, StrengthExercise, Workout, WeekPayload
-    from .coach import CoachChatBody, run_chat
+    from .models import Seg, Block, StrengthExercise, Workout, WeekPayload, CoachChatBody
 
 app = FastAPI(title="Maslul Garmin Backend")
 app.add_middleware(
@@ -469,4 +467,12 @@ def activity_splits(activityId: str, authorization: Optional[str] = Header(defau
 @app.post("/coach/chat")
 def coach_chat(body: CoachChatBody, authorization: Optional[str] = Header(default=None)):
     verify_user(authorization)  # every route needs a valid session, even though the reply is stateless
+    # imported here, not at module level - coach.py pulls in the anthropic
+    # package, and every route shares one warm Lambda process, so importing
+    # it eagerly would run its import machinery on every cold start
+    # regardless of which route is hit, not just this one.
+    try:
+        from coach import run_chat
+    except ImportError:
+        from .coach import run_chat
     return run_chat(body)

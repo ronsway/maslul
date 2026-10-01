@@ -23,53 +23,29 @@ frontend as a malformed "apply this" proposal.
 """
 
 import os
-from typing import List, Literal, Optional
+from typing import List
 
-import anthropic
 from fastapi import HTTPException
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 try:
-    from models import Workout
+    from models import Workout, CoachContext, CoachChatBody, ProposedDayChange, CoachChatResponse
 except ImportError:
-    from .models import Workout
+    from .models import Workout, CoachContext, CoachChatBody, ProposedDayChange, CoachChatResponse
 
 MODEL = "claude-sonnet-5-5"
 
 
-def _client() -> anthropic.Anthropic:
+def _client():
+    # imported here, not at module level - this is the only thing in the
+    # whole backend that needs the anthropic package, and every route shares
+    # one warm Lambda process, so importing it eagerly would run its import
+    # machinery (and whatever transitive deps it pulls in) on every cold
+    # start, for every route, not just /coach/chat.
+    import anthropic
     if not os.environ.get("ANTHROPIC_API_KEY"):
         raise HTTPException(500, "ANTHROPIC_API_KEY env var is not set on the server")
     return anthropic.Anthropic()
-
-
-# ---------- request/response models ----------
-
-class ChatMessage(BaseModel):
-    role: Literal["user", "assistant"]
-    content: str
-
-class CoachContext(BaseModel):
-    """Loose by design (plain dicts, not the full Workout model) - this only
-    ever gets formatted into prompt text, never parsed back, so it doesn't
-    need to be kept in lockstep with the strict schema the way the tool
-    output does."""
-    profile: dict = {}
-    upcomingRace: Optional[dict] = None
-    weekWorkouts: List[dict] = []   # [{date, workouts: [...]}, ...] for the visible week
-    recentStats: dict = {}          # this/last/two-weeks-ago planned+done km, month totals
-
-class CoachChatBody(BaseModel):
-    messages: List[ChatMessage]
-    context: CoachContext
-
-class ProposedDayChange(BaseModel):
-    date: str
-    workouts: List[Workout]
-
-class CoachChatResponse(BaseModel):
-    reply: str
-    proposedChanges: Optional[List[ProposedDayChange]] = None
 
 
 # ---------- system prompt ----------
@@ -190,6 +166,7 @@ PROPOSE_PLAN_TOOL = {
 # ---------- the actual call ----------
 
 def run_chat(body: CoachChatBody) -> CoachChatResponse:
+    import anthropic  # see _client() - deliberately not a module-level import
     client = _client()
     system_prompt = build_system_prompt(body.context)
     messages = [{"role": m.role, "content": m.content} for m in body.messages]
